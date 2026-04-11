@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { useAlertStore } from "@/store/alert-store";
 
-interface FooterBarProps {
-  disabled: boolean;
-}
-
-export default function FooterBar({ disabled }: FooterBarProps) {
+export default function FooterBar() {
   const { t } = useTranslation();
+  const disabled = useAlertStore(
+    (state) => state.loading || !state.selectedItem
+  );
 
   return (
     <div className="border-t px-6 py-4">

@@ -10,25 +10,16 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import type { Item } from "@/types/alert";
+import { useAlertStore } from "@/store/alert-store";
 import { getLastSeen, getStatusIcon } from "./helpers";
 
-interface SidebarPanelProps {
-  hoveredId: string | null;
-  items: Item[];
-  onHoverChange: (id: string | null) => void;
-  onSelect: (id: string) => void;
-  selectedId: string | null;
-}
-
-export default function SidebarPanel({
-  hoveredId,
-  items,
-  onHoverChange,
-  onSelect,
-  selectedId,
-}: SidebarPanelProps) {
+export default function SidebarPanel() {
   const { t } = useTranslation();
+  const hoveredId = useAlertStore((state) => state.hoveredId);
+  const items = useAlertStore((state) => state.filteredItems);
+  const selectedId = useAlertStore((state) => state.selectedItem?.id ?? null);
+  const setHoveredId = useAlertStore((state) => state.setHoveredId);
+  const setSelectedId = useAlertStore((state) => state.setSelectedId);
 
   return (
     <Sidebar className="border-r" variant="inset">
@@ -64,9 +55,9 @@ export default function SidebarPanel({
               <SidebarMenuButton
                 className="h-8 gap-2 px-2 hover:bg-accent"
                 isActive={selectedId === item.id}
-                onClick={() => onSelect(item.id)}
-                onMouseEnter={() => onHoverChange(item.id)}
-                onMouseLeave={() => onHoverChange(null)}
+                onClick={() => setSelectedId(item.id)}
+                onMouseEnter={() => setHoveredId(item.id)}
+                onMouseLeave={() => setHoveredId(null)}
               >
                 {/* 图标 */}
                 <div className="shrink-0">{getStatusIcon(item.status)}</div>

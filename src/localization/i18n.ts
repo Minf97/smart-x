@@ -32,6 +32,7 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI Alert Dashboard",
           allAlerts: "All Alerts",
+          clearFilters: "Clear",
           emptyHint: "Pick an alert from the list.",
           emptyTitle: "No alert selected",
           searchPlaceholder: "Search alerts...",
@@ -48,8 +49,10 @@ i18n.use(initReactI18next).init({
           createPr: "Create PR/MR",
           loadFailed: "Failed to load alerts",
           markResolved: "Mark as Resolved",
+          priorityFilter: "Priority",
           dismiss: "Dismiss",
           retry: "Retry",
+          statusFilter: "Status",
         },
         // 语言文案
         language: {
@@ -87,6 +90,7 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI 报警面板",
           allAlerts: "全部报警",
+          clearFilters: "清空",
           emptyHint: "请先从左侧列表选择一条报警。",
           emptyTitle: "未选择报警",
           searchPlaceholder: "搜索报警...",
@@ -103,8 +107,10 @@ i18n.use(initReactI18next).init({
           createPr: "创建 PR/MR",
           loadFailed: "加载报警失败",
           markResolved: "标记已解决",
+          priorityFilter: "优先级",
           dismiss: "忽略",
           retry: "重试",
+          statusFilter: "状态",
         },
         // 语言文案
         language: {

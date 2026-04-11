@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Item } from "@/types/alert";
+import { useAlertStore } from "@/store/alert-store";
 import {
   getFixPatch,
   getFixSummary,
@@ -10,13 +10,6 @@ import {
   getRootCause,
   getStack,
 } from "./helpers";
-
-interface DetailContentProps {
-  error: string | null;
-  item: Item | null;
-  loading: boolean;
-  onRetry: () => void;
-}
 
 // 加载态
 function LoadingView() {
@@ -30,13 +23,12 @@ function LoadingView() {
   );
 }
 
-export default function DetailContent({
-  error,
-  item,
-  loading,
-  onRetry,
-}: DetailContentProps) {
+export default function DetailContent() {
   const { t } = useTranslation();
+  const error = useAlertStore((state) => state.error);
+  const fetchItems = useAlertStore((state) => state.fetchItems);
+  const item = useAlertStore((state) => state.selectedItem);
+  const loading = useAlertStore((state) => state.loading);
 
   if (loading) {
     return <LoadingView />;
@@ -47,7 +39,7 @@ export default function DetailContent({
       <div className="max-w-4xl p-6">
         <p className="font-semibold text-sm">{t("dashboard.loadFailed")}</p>
         <p className="mt-2 text-muted-foreground text-sm">{error}</p>
-        <Button className="mt-4" onClick={onRetry} size="sm">
+        <Button className="mt-4" onClick={fetchItems} size="sm">
           {t("dashboard.retry")}
         </Button>
       </div>

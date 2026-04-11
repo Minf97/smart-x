@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-import type { Item } from "@/types/alert";
+import { useAlertStore } from "@/store/alert-store";
 import {
   getPriorityColor,
   getPriorityLabel,
@@ -9,12 +9,9 @@ import {
   getStatusLabel,
 } from "./helpers";
 
-interface DetailHeaderProps {
-  item: Item | null;
-}
-
-export default function DetailHeader({ item }: DetailHeaderProps) {
+export default function DetailHeader() {
   const { t } = useTranslation();
+  const item = useAlertStore((state) => state.selectedItem);
 
   if (!item) {
     return (
