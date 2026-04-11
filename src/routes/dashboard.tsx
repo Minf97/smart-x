@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, Check, ChevronDown, Circle, Settings } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Circle, Search, Settings } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
@@ -13,6 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import ToggleTheme from "@/components/toggle-theme";
 
@@ -87,7 +89,6 @@ const mockAlerts = [
 function DashboardPage() {
   const [selectedAlert, setSelectedAlert] = useState(mockAlerts[0]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("all");
 
   // 获取状态图标和颜色
   const getStatusIcon = (status: string) => {
@@ -199,48 +200,18 @@ function DashboardPage() {
         {/* 右侧主内容区 - 使用 SidebarInset 自动添加 border */}
         <SidebarInset>
           <div className="flex flex-col h-full">
-            {/* 顶部导航栏（类似 Linear 的 My issues, Assigned, Created） */}
-            <header className="flex items-center gap-2 px-6 py-3 border-b">
-              <Button
-                variant={activeTab === "all" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setActiveTab("all")}
-                className="h-8"
-              >
-                My Issues
-              </Button>
-              <Button
-                variant={activeTab === "assigned" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setActiveTab("assigned")}
-                className="h-8"
-              >
-                Assigned
-              </Button>
-              <Button
-                variant={activeTab === "created" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setActiveTab("created")}
-                className="h-8"
-              >
-                Created
-              </Button>
-              <Button
-                variant={activeTab === "subscribed" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setActiveTab("subscribed")}
-                className="h-8"
-              >
-                Subscribed
-              </Button>
-              <Button
-                variant={activeTab === "activity" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setActiveTab("activity")}
-                className="h-8"
-              >
-                Activity
-              </Button>
+            {/* 顶部工具栏 - Sidebar 收起按钮 + 搜索框 */}
+            <header className="flex items-center gap-4 px-4 py-3 border-b">
+              <SidebarTrigger />
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search alerts..."
+                    className="pl-9 h-9"
+                  />
+                </div>
+              </div>
             </header>
 
             {/* 详情标题栏 */}
