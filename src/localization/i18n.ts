@@ -32,6 +32,8 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI Alert Dashboard",
           allAlerts: "All Alerts",
+          emptyHint: "Pick an alert from the list.",
+          emptyTitle: "No alert selected",
           searchPlaceholder: "Search alerts...",
           source: "Source",
           reported: "Reported",
@@ -44,8 +46,10 @@ i18n.use(initReactI18next).init({
           contextRetrieved: "Code context retrieved",
           fixGenerated: "Fix suggestion generated",
           createPr: "Create PR/MR",
+          loadFailed: "Failed to load alerts",
           markResolved: "Mark as Resolved",
           dismiss: "Dismiss",
+          retry: "Retry",
         },
         // 语言文案
         language: {
@@ -83,6 +87,8 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI 报警面板",
           allAlerts: "全部报警",
+          emptyHint: "请先从左侧列表选择一条报警。",
+          emptyTitle: "未选择报警",
           searchPlaceholder: "搜索报警...",
           source: "来源",
           reported: "上报时间",
@@ -95,8 +101,10 @@ i18n.use(initReactI18next).init({
           contextRetrieved: "已获取代码上下文",
           fixGenerated: "已生成修复建议",
           createPr: "创建 PR/MR",
+          loadFailed: "加载报警失败",
           markResolved: "标记已解决",
           dismiss: "忽略",
+          retry: "重试",
         },
         // 语言文案
         language: {
