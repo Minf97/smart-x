@@ -14,6 +14,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import ToggleTheme from "@/components/toggle-theme";
@@ -195,6 +196,7 @@ function DashboardPage() {
               ))}
             </SidebarMenu>
           </SidebarContent>
+          <SidebarRail />
         </Sidebar>
 
         {/* 右侧主内容区 - 使用 SidebarInset 自动添加 border */}
