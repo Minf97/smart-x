@@ -5,7 +5,7 @@ export const ITEM_STATUS_VALUES = [
   "in_progress",
   "in_review",
   "done",
-  "canceled",
+  "dismiss",
   "duplicate",
 ] as const;
 
@@ -19,7 +19,7 @@ export const ITEM_STATUS_I18N_KEYS = {
   in_progress: "alerts.status.in_progress",
   in_review: "alerts.status.in_review",
   done: "alerts.status.done",
-  canceled: "alerts.status.canceled",
+  dismiss: "alerts.status.dismiss",
   duplicate: "alerts.status.duplicate",
 } as const satisfies Record<ItemStatus, `alerts.status.${ItemStatus}`>;
 

@@ -158,7 +158,7 @@ at updateComponent (react-dom.js:456:23)`,
     },
     id: "ENG-2143",
     priority: "P2",
-    status: "canceled",
+    status: "dismiss",
     title: "Redis cache miss rate above threshold",
   },
   {

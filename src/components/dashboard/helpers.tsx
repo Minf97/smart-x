@@ -21,7 +21,7 @@ export function getStatusIcon(status: ItemStatus) {
       return <Circle className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />;
     case "duplicate":
       return <Circle className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />;
-    case "canceled":
+    case "dismiss":
       return <Circle className="h-3.5 w-3.5 fill-zinc-500 text-zinc-500" />;
     case "backlog":
       return <Circle className="h-3.5 w-3.5 fill-gray-400 text-gray-400" />;
@@ -45,7 +45,7 @@ export function getPriorityColor(priority: ItemPriority) {
 export function getStatusColor(status: ItemStatus) {
   const colors = {
     backlog: "bg-gray-500/10 text-gray-500",
-    canceled: "bg-zinc-500/10 text-zinc-500",
+    dismiss: "bg-zinc-500/10 text-zinc-500",
     done: "bg-green-500/10 text-green-500",
     duplicate: "bg-orange-500/10 text-orange-500",
     in_progress: "bg-blue-500/10 text-blue-500",

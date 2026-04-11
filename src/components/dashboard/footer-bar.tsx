@@ -5,25 +5,45 @@ import { updateAlertStatus } from "@/api/alerts";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
-import type { Item } from "@/types/alert";
+import type { Item, ItemStatus } from "@/types/alert";
+
+// 状态文案
+function getStatusToastKey(status: ItemStatus) {
+  if (status === "done") {
+    return {
+      error: "dashboard.markDoneFailed",
+      success: "dashboard.markDoneSuccess",
+    } as const;
+  }
+
+  return {
+    error: "dashboard.dismissFailed",
+    success: "dashboard.dismissSuccess",
+  } as const;
+}
 
 export default function FooterBar() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { loading, selectedItem } = useAlertView();
-  const markDoneMutation = useMutation({
-    mutationFn: (id: string) => updateAlertStatus(id, "done"),
-    onError() {
-      toast.error(t("dashboard.markDoneFailed"));
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ItemStatus }) =>
+      updateAlertStatus(id, status),
+    onError(_, variables) {
+      const toastKey = getStatusToastKey(variables.status);
+      toast.error(t(toastKey.error));
     },
-    onSuccess(updatedItem) {
+    onSuccess(updatedItem, variables) {
+      const toastKey = getStatusToastKey(variables.status);
       queryClient.setQueryData<Item[]>(ALERTS_QUERY_KEY, (items) =>
         items?.map((item) => (item.id === updatedItem.id ? updatedItem : item))
       );
-      toast.success(t("dashboard.markDoneSuccess"));
+      toast.success(t(toastKey.success));
     },
   });
-  const disabled = loading || !selectedItem || markDoneMutation.isPending;
+  const disabled = loading || !selectedItem || statusMutation.isPending;
+  const dismissDisabled = disabled || selectedItem?.status === "dismiss";
+  const doneDisabled = disabled || selectedItem?.status === "done";
 
   // 标记完成
   function handleMarkDone() {
@@ -31,7 +51,22 @@ export default function FooterBar() {
       return;
     }
 
-    markDoneMutation.mutate(selectedItem.id);
+    statusMutation.mutate({
+      id: selectedItem.id,
+      status: "done",
+    });
+  }
+
+  // 忽略项
+  function handleDismiss() {
+    if (!selectedItem) {
+      return;
+    }
+
+    statusMutation.mutate({
+      id: selectedItem.id,
+      status: "dismiss",
+    });
   }
 
   return (
@@ -41,15 +76,27 @@ export default function FooterBar() {
           {t("dashboard.createPr")}
         </Button>
         <Button
-          disabled={disabled}
+          disabled={doneDisabled}
           onClick={handleMarkDone}
           size="sm"
           variant="outline"
         >
-          {markDoneMutation.isPending && <Spinner className="size-3" />}
+          {statusMutation.isPending &&
+            statusMutation.variables.status === "done" && (
+              <Spinner className="size-3" />
+            )}
           {t("dashboard.markDone")}
         </Button>
-        <Button disabled={disabled} size="sm" variant="ghost">
+        <Button
+          disabled={dismissDisabled}
+          onClick={handleDismiss}
+          size="sm"
+          variant="ghost"
+        >
+          {statusMutation.isPending &&
+            statusMutation.variables.status === "dismiss" && (
+              <Spinner className="size-3" />
+            )}
           {t("dashboard.dismiss")}
         </Button>
       </div>
