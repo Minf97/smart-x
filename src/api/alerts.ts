@@ -1,7 +1,7 @@
-import type { Item } from "@/types/alert";
+import type { Item, ItemStatus } from "@/types/alert";
 
 // Mock 数据
-const MOCK_ALERTS: Item[] = [
+let mockAlerts: Item[] = [
   {
     detail: {
       analysis: {
@@ -210,5 +210,28 @@ export async function listAlerts() {
   // 模拟延迟
   await new Promise((resolve) => window.setTimeout(resolve, 120));
 
-  return MOCK_ALERTS;
+  return mockAlerts;
+}
+
+// 更新状态
+export async function updateAlertStatus(id: string, status: ItemStatus) {
+  // 模拟延迟
+  await new Promise((resolve) => window.setTimeout(resolve, 360));
+
+  const item = mockAlerts.find((alert) => alert.id === id);
+
+  if (!item) {
+    throw new Error("Alert not found.");
+  }
+
+  const updatedItem = {
+    ...item,
+    status,
+  };
+
+  mockAlerts = mockAlerts.map((alert) =>
+    alert.id === id ? updatedItem : alert
+  );
+
+  return updatedItem;
 }
