@@ -1,5 +1,5 @@
 import { SiElectron, SiReact, SiVite } from "@icons-pack/react-simple-icons";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { getAppVersion } from "@/actions/app";
@@ -7,6 +7,7 @@ import ExternalLink from "@/components/external-link";
 import LangToggle from "@/components/lang-toggle";
 import NavigationMenu from "@/components/navigation-menu";
 import ToggleTheme from "@/components/toggle-theme";
+import { Button } from "@/components/ui/button";
 
 /*
  * Update this page to modify your home page.
@@ -50,6 +51,11 @@ function HomePage() {
               <LangToggle />
               <ToggleTheme />
             </div>
+          </div>
+          <div className="mt-6">
+            <Link to="/dashboard">
+              <Button>Open Dashboard</Button>
+            </Link>
           </div>
         </div>
       </div>
