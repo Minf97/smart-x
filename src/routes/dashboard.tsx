@@ -1,21 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
 import DetailContent from "@/components/dashboard/detail-content";
 import DetailHeader from "@/components/dashboard/detail-header";
 import FooterBar from "@/components/dashboard/footer-bar";
 import HeaderBar from "@/components/dashboard/header-bar";
 import SidebarPanel from "@/components/dashboard/sidebar-panel";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useAlertStore } from "@/store/alert-store";
 
 function DashboardPage() {
-  const fetchItems = useAlertStore((state) => state.fetchItems);
-
-  // 首次拉取
-  useEffect(() => {
-    fetchItems().catch(() => undefined);
-  }, [fetchItems]);
-
   return (
     <SidebarProvider defaultOpen>
       {/* 主容器 */}

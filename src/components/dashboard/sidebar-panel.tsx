@@ -10,16 +10,17 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useAlertView } from "@/hooks/use-alerts";
 import { useAlertStore } from "@/store/alert-store";
 import { getLastSeen, getStatusIcon } from "./helpers";
 
 export default function SidebarPanel() {
   const { t } = useTranslation();
   const hoveredId = useAlertStore((state) => state.hoveredId);
-  const items = useAlertStore((state) => state.filteredItems);
-  const selectedId = useAlertStore((state) => state.selectedItem?.id ?? null);
   const setHoveredId = useAlertStore((state) => state.setHoveredId);
   const setSelectedId = useAlertStore((state) => state.setSelectedId);
+  const { filteredItems: items, selectedItem } = useAlertView();
+  const selectedId = selectedItem?.id ?? null;
 
   return (
     <Sidebar className="border-r" variant="inset">

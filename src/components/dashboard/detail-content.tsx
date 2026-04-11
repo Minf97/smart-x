@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAlertStore } from "@/store/alert-store";
+import { useAlertView } from "@/hooks/use-alerts";
 import {
   getFixPatch,
   getFixSummary,
@@ -25,10 +25,7 @@ function LoadingView() {
 
 export default function DetailContent() {
   const { t } = useTranslation();
-  const error = useAlertStore((state) => state.error);
-  const fetchItems = useAlertStore((state) => state.fetchItems);
-  const item = useAlertStore((state) => state.selectedItem);
-  const loading = useAlertStore((state) => state.loading);
+  const { error, loading, refetch, selectedItem: item } = useAlertView();
 
   if (loading) {
     return <LoadingView />;
@@ -38,8 +35,16 @@ export default function DetailContent() {
     return (
       <div className="max-w-4xl p-6">
         <p className="font-semibold text-sm">{t("dashboard.loadFailed")}</p>
-        <p className="mt-2 text-muted-foreground text-sm">{error}</p>
-        <Button className="mt-4" onClick={fetchItems} size="sm">
+        <p className="mt-2 text-muted-foreground text-sm">
+          {error instanceof Error ? error.message : t("dashboard.loadFailed")}
+        </p>
+        <Button
+          className="mt-4"
+          onClick={() => {
+            refetch().catch(() => undefined);
+          }}
+          size="sm"
+        >
           {t("dashboard.retry")}
         </Button>
       </div>
