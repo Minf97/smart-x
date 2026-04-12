@@ -49,7 +49,7 @@ export function createRequest(
   const now = new Date().toISOString();
   const remoteId = buildRemoteId();
 
-  return {
+  return rejectMockRequest({
     baseBranch: config.baseBranch,
     branchName: buildBranchName(item),
     createdAt: now,
@@ -60,7 +60,12 @@ export function createRequest(
     title: buildRequestTitle(item),
     updatedAt: now,
     url: buildRequestUrl(config, remoteId),
-  };
+  });
+}
+
+// 拒绝模拟
+function rejectMockRequest(_request: CodeRequest): never {
+  throw new Error("Real PR/MR integration is not ready.");
 }
 
 // 合并态

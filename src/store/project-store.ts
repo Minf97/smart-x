@@ -3,6 +3,7 @@ import type { Project } from "@/types/project";
 
 // 状态结构
 interface ProjectStore {
+  addProject: (project: Project) => void;
   currentProjectId: string | null;
   hydrateProjects: (projects: Project[]) => void;
   projects: Project[];
@@ -30,7 +31,15 @@ function resolveProjectId(
 
 // 项目仓库
 export const useProjectStore = create<ProjectStore>((set) => ({
+  // 新建项目
+  addProject(project) {
+    set((state) => ({
+      currentProjectId: project.id,
+      projects: [...state.projects, project],
+    }));
+  },
   currentProjectId: null,
+  // 初始化项目
   hydrateProjects(projects) {
     set((state) => ({
       currentProjectId: resolveProjectId(projects, state.currentProjectId),

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { alertsRouter } from "./alerts/routes";
 import { closeLocalDatabase, initLocalDatabase } from "./db";
+import { projectsRouter } from "./projects/routes";
 
 let alertsApiOrigin = "";
 let server: ServerType | null = null;
@@ -16,6 +17,7 @@ function buildServerApp() {
 
   app.use("*", cors());
   app.route("/", alertsRouter);
+  app.route("/", projectsRouter);
 
   return app;
 }

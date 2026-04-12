@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
-import ExternalLink from "@/components/external-link";
-import { Badge } from "@/components/ui/badge";
-import type { CodeRequest } from "@/types/project";
 import {
   getProviderLabel,
   getRequestStateColor,
   getRequestStateLabel,
-} from "../helpers";
+} from "@/components/dashboard/helpers";
+import ExternalLink from "@/components/external-link";
+import { Badge } from "@/components/ui/badge";
+import type { CodeRequest } from "@/types/project";
 
 interface DetailRequestProps {
   request: CodeRequest | null;

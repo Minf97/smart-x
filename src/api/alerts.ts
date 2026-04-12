@@ -1,9 +1,7 @@
 import { ipc } from "@/ipc/manager";
 import type { Item, ItemStatus } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
-import type { Project } from "@/types/project";
-
-let apiOriginPromise: Promise<string> | null = null;
+import type { Project, ProjectInput } from "@/types/project";
 
 // 请求错
 class RequestError extends Error {
@@ -15,14 +13,7 @@ class RequestError extends Error {
 
 // 服务址
 function getApiOrigin() {
-  if (!apiOriginPromise) {
-    apiOriginPromise = ipc.client.app.alertsApiOrigin().catch((error) => {
-      apiOriginPromise = null;
-      throw error;
-    });
-  }
-
-  return apiOriginPromise;
+  return ipc.client.app.alertsApiOrigin();
 }
 
 // 拼地址
@@ -110,6 +101,34 @@ export async function closeAlertRequest(id: string) {
   const url = await buildApiUrl(`/alerts/${id}/request/close`);
   const response = await fetch(url, {
     method: "POST",
+  });
+
+  return readJson<Project>(response);
+}
+
+// 创建项目
+export async function createProject(input: ProjectInput) {
+  const url = await buildApiUrl("/projects");
+  const response = await fetch(url, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return readJson<Project>(response);
+}
+
+// 更新项目
+export async function updateProject(id: string, input: ProjectInput) {
+  const url = await buildApiUrl(`/projects/${id}`);
+  const response = await fetch(url, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
   });
 
   return readJson<Project>(response);

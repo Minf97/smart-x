@@ -1,6 +1,4 @@
-import { AlertCircle, ChevronDown, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -12,56 +10,22 @@ import {
 } from "@/components/ui/sidebar";
 import { useAlertView } from "@/hooks/use-alerts";
 import { useAlertStore } from "@/store/alert-store";
-import { useProjectStore } from "@/store/project-store";
 import { getLastSeen, getStatusIcon } from "./helpers";
+import ProjectSwitcher from "./project-switcher";
+import SettingsTrigger from "./settings-trigger";
 
 export default function SidebarPanel() {
   const { t } = useTranslation();
   const hoveredId = useAlertStore((state) => state.hoveredId);
   const setHoveredId = useAlertStore((state) => state.setHoveredId);
   const setSelectedId = useAlertStore((state) => state.setSelectedId);
-  const setProjectId = useProjectStore((state) => state.setCurrentProjectId);
-  const {
-    currentProject,
-    filteredItems: items,
-    projects,
-    selectedItem,
-  } = useAlertView();
+  const { filteredItems: items, selectedItem } = useAlertView();
   const selectedId = selectedItem?.id ?? null;
-
-  if (!currentProject) {
-    throw new Error("Current project not found.");
-  }
-  const projectId = currentProject.id;
-
-  // 切项目
-  function switchProject() {
-    const index = projects.findIndex((project) => project.id === projectId);
-    const nextProject =
-      projects[(index + 1 + projects.length) % projects.length];
-    setProjectId(nextProject.id);
-  }
 
   return (
     <Sidebar className="border-r" variant="inset">
       <SidebarHeader className="border-b">
-        <Button
-          className="h-9 w-full justify-between px-3 hover:bg-accent"
-          onClick={switchProject}
-          variant="ghost"
-        >
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 text-left">
-              <span className="block truncate font-medium text-sm">
-                {currentProject.name}
-              </span>
-              <span className="block truncate text-muted-foreground text-xs">
-                {currentProject.repoConfig.repoName}
-              </span>
-            </div>
-          </div>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </Button>
+        <ProjectSwitcher />
       </SidebarHeader>
 
       {/* 统计栏 */}
@@ -71,9 +35,7 @@ export default function SidebarPanel() {
           <span className="text-muted-foreground/60">·</span>
           <span className="text-muted-foreground/60">{items.length}</span>
         </div>
-        <Button className="h-7 w-7" size="icon" variant="ghost">
-          <Settings className="h-3.5 w-3.5" />
-        </Button>
+        <SettingsTrigger />
       </div>
 
       <SidebarContent className="px-0">

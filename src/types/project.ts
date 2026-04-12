@@ -58,6 +58,12 @@ export interface ProjectRepoConfig {
   repoName: string; // 仓库
 }
 
+// 项目入参
+export interface ProjectInput {
+  name: string; // 名称
+  repoConfig: ProjectRepoConfig; // 配置
+}
+
 // 项目类型
 export interface Project {
   id: string; // 主键

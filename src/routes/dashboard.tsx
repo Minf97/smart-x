@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import DetailContent from "@/components/dashboard/detail-content";
 import DetailHeader from "@/components/dashboard/detail-header";
 import FooterBar from "@/components/dashboard/footer-bar";
 import HeaderBar from "@/components/dashboard/header-bar";
 import SidebarPanel from "@/components/dashboard/sidebar-panel";
+import DetailContent from "@/components/detail-content";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/server/db";
@@ -12,13 +13,31 @@ import {
 import type { Detail, Item, ItemStatus } from "@/types/alert";
 import { ITEM_STATUS_VALUES } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
-import type { CodeRequest, Project } from "@/types/project";
+import {
+  type CodeRequest,
+  type Project,
+  type ProjectInput,
+  REQUEST_PROVIDER_VALUES,
+} from "@/types/project";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
 // 状态校验
 export const updateStatusSchema = z.object({
   status: z.enum(ITEM_STATUS_VALUES),
 });
+
+// 项目校验
+const projectSchema = z.object({
+  name: z.string().trim().min(1),
+  repoConfig: z.object({
+    baseBranch: z.string().trim().min(1),
+    provider: z.enum(REQUEST_PROVIDER_VALUES),
+    repoName: z.string().trim().min(1),
+  }),
+});
+
+export const createProjectSchema = projectSchema;
+export const updateProjectSchema = projectSchema;
 
 // 项目种子
 const defaultProjects = [
@@ -286,6 +305,18 @@ function toProjectRow(project: Project, position: number): NewProjectRow {
   };
 }
 
+// 转项目入参
+function toProjectInput(input: ProjectInput) {
+  return {
+    name: input.name.trim(),
+    repoConfig: {
+      baseBranch: input.repoConfig.baseBranch.trim(),
+      provider: input.repoConfig.provider,
+      repoName: input.repoConfig.repoName.trim(),
+    },
+  } satisfies ProjectInput;
+}
+
 // 转报警
 function toItem(row: AlertRow): Item {
   return {
@@ -336,6 +367,17 @@ function getProjectRow(id: string) {
   return row;
 }
 
+// 查项目列
+function listProjectRows() {
+  const db = getDb();
+
+  return db
+    .select()
+    .from(projectsTable)
+    .orderBy(asc(projectsTable.position))
+    .all();
+}
+
 // 写单条
 function updateAlertRow(
   row: AlertRow,
@@ -354,7 +396,7 @@ function updateAlertRow(
 // 写项目
 function updateProjectRow(
   row: ProjectRow,
-  patch: Partial<Pick<ProjectRow, "requestMapJson">>
+  patch: Partial<Pick<ProjectRow, "name" | "repoConfigJson" | "requestMapJson">>
 ) {
   const db = getDb();
 
@@ -415,6 +457,39 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   await delay(360);
 
   return updateAlertRow(getAlertRow(id), { status });
+}
+
+// 创建项目
+export async function createProject(input: ProjectInput) {
+  ensureSeeded();
+  await delay(240);
+
+  const db = getDb();
+  const rows = listProjectRows();
+  const projectInput = toProjectInput(input);
+  const project = {
+    id: randomUUID(),
+    name: projectInput.name,
+    repoConfig: projectInput.repoConfig,
+    requestMap: {},
+  } satisfies Project;
+
+  db.insert(projectsTable).values(toProjectRow(project, rows.length)).run();
+
+  return project;
+}
+
+// 更新项目
+export async function updateProject(id: string, input: ProjectInput) {
+  ensureSeeded();
+  await delay(240);
+
+  const projectInput = toProjectInput(input);
+
+  return updateProjectRow(getProjectRow(id), {
+    name: projectInput.name,
+    repoConfigJson: JSON.stringify(projectInput.repoConfig),
+  });
 }
 
 // 创建PR
