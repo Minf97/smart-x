@@ -10,7 +10,19 @@ import { router } from "./utils/routes";
 import "./localization/i18n";
 
 // 查询客户端
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 组件挂载时不自动刷新数据
+      // refetchOnMount: false,
+      // 组件重新连接时不自动刷新数据
+      // refetchOnReconnect: false,
+      // 窗口重新聚焦、切回页面时不自动刷新数据
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    },
+  },
+});
 
 export default function App() {
   const { i18n } = useTranslation();

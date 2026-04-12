@@ -7,6 +7,7 @@ import {
 } from "electron-devtools-installer";
 import { UpdateSourceType, updateElectronApp } from "update-electron-app";
 import { ipcContext } from "@/ipc/context";
+import { startLocalApiServer, stopLocalApiServer } from "@/server";
 import { IPC_CHANNELS, inDevelopment } from "./constants";
 import { getBasePath } from "./utils/path";
 
@@ -29,6 +30,12 @@ function createWindow() {
       process.platform === "darwin" ? { x: 5, y: 5 } : undefined,
   });
   ipcContext.setMainWindow(mainWindow);
+
+  return mainWindow;
+}
+
+function loadWindow(mainWindow: BrowserWindow) {
+  const basePath = getBasePath();
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -70,10 +77,14 @@ async function setupORPC() {
 
 app.whenReady().then(async () => {
   try {
-    createWindow();
+    await startLocalApiServer();
+    const mainWindow = createWindow();
+    // 初始化 ORPC 服务器，里面会import一些 handler，其中有些依赖 mainWindowContext
+    await setupORPC();
+    // 真正的加载页面
+    loadWindow(mainWindow);
     await installExtensions();
     checkForUpdates();
-    await setupORPC();
   } catch (error) {
     console.error("Error during app initialization:", error);
   }
@@ -88,7 +99,11 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    loadWindow(createWindow());
   }
 });
 //osX only ends
+
+app.on("before-quit", () => {
+  stopLocalApiServer();
+});
