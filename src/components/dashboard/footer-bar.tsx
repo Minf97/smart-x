@@ -2,10 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { updateAlertStatus } from "@/api/alerts";
+import RequestActions from "@/components/dashboard/request-actions";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
-import type { Item, ItemStatus } from "@/types/alert";
+import type { ItemStatus } from "@/types/alert";
+import type { DashboardData } from "@/types/dashboard";
 
 // 状态文案
 function getStatusToastKey(status: ItemStatus) {
@@ -35,9 +37,18 @@ export default function FooterBar() {
     },
     onSuccess(updatedItem, variables) {
       const toastKey = getStatusToastKey(variables.status);
-      queryClient.setQueryData<Item[]>(ALERTS_QUERY_KEY, (items) =>
-        items?.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-      );
+      queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) => {
+        if (!data) {
+          return data;
+        }
+
+        return {
+          ...data,
+          alerts: data.alerts.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          ),
+        };
+      });
       toast.success(t(toastKey.success));
     },
   });
@@ -72,9 +83,7 @@ export default function FooterBar() {
   return (
     <div className="border-t px-6 py-4">
       <div className="flex gap-2">
-        <Button disabled={disabled} size="sm">
-          {t("dashboard.createPr")}
-        </Button>
+        <RequestActions />
         <Button
           disabled={doneDisabled}
           onClick={handleMarkDone}

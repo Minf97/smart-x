@@ -133,6 +133,7 @@ export interface Item {
   detail: Detail; // 详情
   id: string; // 主键
   priority: ItemPriority; // 优先级
+  projectId: string; // 项目
   status: ItemStatus; // 状态
   title: string; // 标题
 }

@@ -18,7 +18,7 @@ interface AlertStore {
   setHoveredId: (hoveredId: string | null) => void;
   setPriorityFilters: (priority: ItemPriority) => void;
   setSearch: (search: string) => void;
-  setSelectedId: (selectedId: string) => void;
+  setSelectedId: (selectedId: string | null) => void;
   setStatusFilters: (status: ItemStatus) => void;
   statusFilters: ItemStatus[];
 }

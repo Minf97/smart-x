@@ -7,6 +7,12 @@ import {
   type ItemPriority,
   type ItemStatus,
 } from "@/types/alert";
+import {
+  REQUEST_PROVIDER_LABELS,
+  REQUEST_STATE_I18N_KEYS,
+  type RequestProvider,
+  type RequestState,
+} from "@/types/project";
 
 // 状态图标
 export function getStatusIcon(status: ItemStatus) {
@@ -64,6 +70,27 @@ export function getStatusLabel(t: TFunction, status: ItemStatus) {
 // 优先文案
 export function getPriorityLabel(t: TFunction, priority: ItemPriority) {
   return t(ITEM_PRIORITY_I18N_KEYS[priority]);
+}
+
+// 平台文案
+export function getProviderLabel(provider: RequestProvider) {
+  return REQUEST_PROVIDER_LABELS[provider];
+}
+
+// 请求色
+export function getRequestStateColor(state: RequestState) {
+  const colors = {
+    closed: "bg-zinc-500/10 text-zinc-500",
+    merged: "bg-green-500/10 text-green-500",
+    open: "bg-blue-500/10 text-blue-500",
+  };
+
+  return colors[state];
+}
+
+// 请求文案
+export function getRequestStateLabel(t: TFunction, state: RequestState) {
+  return t(REQUEST_STATE_I18N_KEYS[state]);
 }
 
 // 最近时间

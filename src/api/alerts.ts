@@ -1,5 +1,7 @@
 import { ipc } from "@/ipc/manager";
 import type { Item, ItemStatus } from "@/types/alert";
+import type { DashboardData } from "@/types/dashboard";
+import type { Project } from "@/types/project";
 
 let apiOriginPromise: Promise<string> | null = null;
 
@@ -66,7 +68,7 @@ export async function listAlerts() {
   const url = await buildApiUrl("/alerts");
   const response = await fetch(url);
 
-  return readJson<Item[]>(response);
+  return readJson<DashboardData>(response);
 }
 
 // 更新状态
@@ -81,4 +83,34 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   });
 
   return readJson<Item>(response);
+}
+
+// 创建PR
+export async function createAlertRequest(id: string) {
+  const url = await buildApiUrl(`/alerts/${id}/request`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<Project>(response);
+}
+
+// 合并PR
+export async function mergeAlertRequest(id: string) {
+  const url = await buildApiUrl(`/alerts/${id}/request/merge`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<Project>(response);
+}
+
+// 关闭PR
+export async function closeAlertRequest(id: string) {
+  const url = await buildApiUrl(`/alerts/${id}/request/close`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<Project>(response);
 }

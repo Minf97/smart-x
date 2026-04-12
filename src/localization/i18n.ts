@@ -13,6 +13,11 @@ i18n.use(initReactI18next).init({
         madeBy: "Made by LuanRoger",
         // 报警文案
         alerts: {
+          requestState: {
+            closed: "Closed",
+            merged: "Merged",
+            open: "Open",
+          },
           status: {
             backlog: "Backlog",
             todo: "Todo",
@@ -32,6 +37,10 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI Alert Dashboard",
           allAlerts: "All Alerts",
+          branch: "Branch",
+          closePr: "Close PR/MR",
+          closePrFailed: "Failed to close PR/MR",
+          closePrSuccess: "PR/MR closed",
           clearFilters: "Clear",
           emptyHint: "Pick an alert from the list.",
           emptyTitle: "No alert selected",
@@ -47,16 +56,26 @@ i18n.use(initReactI18next).init({
           contextRetrieved: "Code context retrieved",
           fixGenerated: "Fix suggestion generated",
           createPr: "Create PR/MR",
+          createPrFailed: "Failed to create PR/MR",
+          createPrSuccess: "PR/MR created",
           loadFailed: "Failed to load alerts",
           dismissFailed: "Failed to dismiss",
           dismissSuccess: "Dismissed",
           markDone: "Mark as Done",
           markDoneFailed: "Failed to mark as done",
           markDoneSuccess: "Marked as done",
+          mergeCode: "Merge Code",
+          mergePrFailed: "Failed to merge PR/MR",
+          mergePrSuccess: "PR/MR merged",
+          prEmpty: "No PR/MR yet",
+          prTitle: "Title",
           priorityFilter: "Priority",
+          repository: "Repository",
           dismiss: "Dismiss",
+          requestTitle: "PR / MR",
           retry: "Retry",
           statusFilter: "Status",
+          viewPr: "View PR/MR",
         },
         // 语言文案
         language: {
@@ -75,6 +94,11 @@ i18n.use(initReactI18next).init({
         madeBy: "由 LuanRoger 制作",
         // 报警文案
         alerts: {
+          requestState: {
+            closed: "已关闭",
+            merged: "已合并",
+            open: "进行中",
+          },
           status: {
             backlog: "Backlog",
             todo: "待处理",
@@ -94,6 +118,10 @@ i18n.use(initReactI18next).init({
         dashboard: {
           title: "AI 报警面板",
           allAlerts: "全部报警",
+          branch: "分支",
+          closePr: "关闭 PR/MR",
+          closePrFailed: "关闭 PR/MR 失败",
+          closePrSuccess: "已关闭 PR/MR",
           clearFilters: "清空",
           emptyHint: "请先从左侧列表选择一条报警。",
           emptyTitle: "未选择报警",
@@ -109,16 +137,26 @@ i18n.use(initReactI18next).init({
           contextRetrieved: "已获取代码上下文",
           fixGenerated: "已生成修复建议",
           createPr: "创建 PR/MR",
+          createPrFailed: "创建 PR/MR 失败",
+          createPrSuccess: "已创建 PR/MR",
           loadFailed: "加载报警失败",
           dismissFailed: "忽略失败",
           dismissSuccess: "已忽略",
           markDone: "标记为完成",
           markDoneFailed: "标记完成失败",
           markDoneSuccess: "已标记为完成",
+          mergeCode: "合并代码",
+          mergePrFailed: "合并 PR/MR 失败",
+          mergePrSuccess: "已合并 PR/MR",
+          prEmpty: "还没有创建 PR/MR",
+          prTitle: "标题",
           priorityFilter: "优先级",
+          repository: "仓库",
           dismiss: "忽略",
+          requestTitle: "PR / MR",
           retry: "重试",
           statusFilter: "状态",
+          viewPr: "查看 PR/MR",
         },
         // 语言文案
         language: {

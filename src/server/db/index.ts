@@ -2,12 +2,13 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
-import { alertsTable } from "./schema";
+import { alertsTable, projectsTable } from "./schema";
 
 function createDb(connection: Database.Database) {
   return drizzle(connection, {
     schema: {
       alertsTable,
+      projectsTable,
     },
   });
 }
@@ -19,18 +20,27 @@ let db: LocalDb | null = null;
 
 // 库路径
 function getDbPath() {
-  return path.join(app.getPath("userData"), "alerts.sqlite");
+  return path.join(app.getPath("userData"), "alerts-mock-v3.sqlite");
 }
 
 // 建表句
 function getSchemaSql() {
   return `
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      repo_config_json TEXT NOT NULL,
+      request_map_json TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS alerts (
       id TEXT PRIMARY KEY NOT NULL,
       title TEXT NOT NULL,
       status TEXT NOT NULL,
       priority TEXT NOT NULL,
       position INTEGER NOT NULL,
+      project_id TEXT NOT NULL,
       detail_json TEXT NOT NULL
     );
   `;

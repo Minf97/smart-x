@@ -1,12 +1,68 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import DetailContent from "@/components/dashboard/detail-content";
 import DetailHeader from "@/components/dashboard/detail-header";
 import FooterBar from "@/components/dashboard/footer-bar";
 import HeaderBar from "@/components/dashboard/header-bar";
 import SidebarPanel from "@/components/dashboard/sidebar-panel";
+import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
+import { useDashboardBootstrap } from "@/hooks/use-alerts";
+
+function DashboardLoading() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <Spinner className="size-4" />
+    </div>
+  );
+}
+
+interface DashboardErrorProps {
+  error: Error;
+  retry: () => void;
+}
+
+function DashboardError({ error, retry }: DashboardErrorProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-md rounded-lg border p-6">
+        <p className="font-semibold text-sm">{t("dashboard.loadFailed")}</p>
+        <p className="mt-2 text-muted-foreground text-sm">{error.message}</p>
+        <Button
+          className="mt-4"
+          onClick={() => {
+            retry();
+          }}
+          size="sm"
+        >
+          {t("dashboard.retry")}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function DashboardPage() {
+  const { error, loading, refetch } = useDashboardBootstrap();
+
+  if (loading) {
+    return <DashboardLoading />;
+  }
+
+  if (error) {
+    return (
+      <DashboardError
+        error={error}
+        retry={() => {
+          refetch().catch(() => undefined);
+        }}
+      />
+    );
+  }
+
   return (
     <SidebarProvider defaultOpen>
       {/* 主容器 */}
