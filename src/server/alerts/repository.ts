@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { asc, eq } from "drizzle-orm";
+import { app } from "electron";
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import {
@@ -10,6 +12,12 @@ import {
   type ProjectRow,
   projectsTable,
 } from "@/server/db/schema";
+import { getGithubAccessToken } from "@/server/github/auth-service";
+import {
+  cloneGithubRepo,
+  updateGithubRemote,
+} from "@/server/projects/git-service";
+import { validateGithubProject } from "@/server/projects/github-service";
 import type { Detail, Item, ItemStatus } from "@/types/alert";
 import { ITEM_STATUS_VALUES } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
@@ -18,8 +26,13 @@ import {
   type Project,
   type ProjectInput,
   REQUEST_PROVIDER_VALUES,
+  type StoredProjectRepoConfig,
 } from "@/types/project";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
+
+interface StoredProject extends Omit<Project, "repoConfig"> {
+  repoConfig: StoredProjectRepoConfig;
+}
 
 // 状态校验
 export const updateStatusSchema = z.object({
@@ -33,6 +46,13 @@ const projectSchema = z.object({
     baseBranch: z.string().trim().min(1),
     provider: z.enum(REQUEST_PROVIDER_VALUES),
     repoName: z.string().trim().min(1),
+    token: z.string().trim(),
+  }),
+});
+
+export const validateProjectSchema = projectSchema.extend({
+  repoConfig: projectSchema.shape.repoConfig.extend({
+    token: z.string().trim(),
   }),
 });
 
@@ -46,8 +66,10 @@ const defaultProjects = [
     name: "Client App",
     repoConfig: {
       baseBranch: "main",
+      managedRepoPath: "",
       provider: "github",
       repoName: "demo/client-app",
+      token: "",
     },
     requestMap: {},
   },
@@ -56,12 +78,14 @@ const defaultProjects = [
     name: "Server API",
     repoConfig: {
       baseBranch: "develop",
+      managedRepoPath: "",
       provider: "gitlab",
       repoName: "demo/server-api",
+      token: "",
     },
     requestMap: {},
   },
-] satisfies Project[];
+] satisfies StoredProject[];
 
 // 默认种子
 const defaultAlerts = [
@@ -295,7 +319,7 @@ function toAlertRow(item: Item, position: number): NewAlertRow {
 }
 
 // 转项目行
-function toProjectRow(project: Project, position: number): NewProjectRow {
+function toProjectRow(project: StoredProject, position: number): NewProjectRow {
   return {
     id: project.id,
     name: project.name,
@@ -313,8 +337,30 @@ function toProjectInput(input: ProjectInput) {
       baseBranch: input.repoConfig.baseBranch.trim(),
       provider: input.repoConfig.provider,
       repoName: input.repoConfig.repoName.trim(),
+      token: input.repoConfig.token.trim(),
     },
   } satisfies ProjectInput;
+}
+
+// 托管目录
+function buildManagedRepoPath(projectId: string) {
+  return path.join(app.getPath("userData"), "managed-repos", projectId);
+}
+
+// 解析令牌
+function resolveGithubToken(token: string) {
+  return token || getGithubAccessToken();
+}
+
+// 外部配置
+function toProjectConfig(config: StoredProjectRepoConfig) {
+  return {
+    baseBranch: config.baseBranch,
+    hasToken: config.token.length > 0,
+    managedRepoPath: config.managedRepoPath,
+    provider: config.provider,
+    repoName: config.repoName,
+  } satisfies Project["repoConfig"];
 }
 
 // 转报警
@@ -331,10 +377,22 @@ function toItem(row: AlertRow): Item {
 
 // 转项目
 function toProject(row: ProjectRow): Project {
+  const project = toStoredProject(row);
+
+  return {
+    id: project.id,
+    name: project.name,
+    repoConfig: toProjectConfig(project.repoConfig),
+    requestMap: project.requestMap,
+  };
+}
+
+// 转存储项目
+function toStoredProject(row: ProjectRow): StoredProject {
   return {
     id: row.id,
     name: row.name,
-    repoConfig: JSON.parse(row.repoConfigJson) as Project["repoConfig"],
+    repoConfig: JSON.parse(row.repoConfigJson) as StoredProjectRepoConfig,
     requestMap: JSON.parse(row.requestMapJson) as Record<string, CodeRequest>,
   };
 }
@@ -428,6 +486,26 @@ function ensureSeeded() {
     .run();
 }
 
+// 校验项目
+export async function validateProjectConnection(input: ProjectInput) {
+  ensureSeeded();
+  await delay(180);
+
+  const projectInput = toProjectInput(input);
+
+  if (projectInput.repoConfig.provider !== "github") {
+    throw new Error("GitLab integration is not ready.");
+  }
+
+  const token = resolveGithubToken(projectInput.repoConfig.token);
+
+  return validateGithubProject(
+    projectInput.repoConfig.repoName,
+    projectInput.repoConfig.baseBranch,
+    token
+  );
+}
+
 // 面板数据
 export async function getDashboardData(): Promise<DashboardData> {
   ensureSeeded();
@@ -467,16 +545,39 @@ export async function createProject(input: ProjectInput) {
   const db = getDb();
   const rows = listProjectRows();
   const projectInput = toProjectInput(input);
-  const project = {
-    id: randomUUID(),
+  const token = resolveGithubToken(projectInput.repoConfig.token);
+  const validated = await validateProjectConnection(projectInput);
+  const projectId = randomUUID();
+  const storedProject = {
+    id: projectId,
     name: projectInput.name,
-    repoConfig: projectInput.repoConfig,
+    repoConfig: {
+      baseBranch: validated.baseBranch,
+      managedRepoPath: buildManagedRepoPath(projectId),
+      provider: validated.provider,
+      repoName: validated.repoName,
+      token,
+    },
     requestMap: {},
+  } satisfies StoredProject;
+
+  await cloneGithubRepo({
+    baseBranch: storedProject.repoConfig.baseBranch,
+    repoName: storedProject.repoConfig.repoName,
+    repoPath: storedProject.repoConfig.managedRepoPath,
+    token: storedProject.repoConfig.token,
+  });
+
+  db.insert(projectsTable)
+    .values(toProjectRow(storedProject, rows.length))
+    .run();
+
+  return {
+    id: storedProject.id,
+    name: storedProject.name,
+    repoConfig: toProjectConfig(storedProject.repoConfig),
+    requestMap: storedProject.requestMap,
   } satisfies Project;
-
-  db.insert(projectsTable).values(toProjectRow(project, rows.length)).run();
-
-  return project;
 }
 
 // 更新项目
@@ -484,11 +585,51 @@ export async function updateProject(id: string, input: ProjectInput) {
   ensureSeeded();
   await delay(240);
 
+  const row = getProjectRow(id);
+  const currentProject = toStoredProject(row);
   const projectInput = toProjectInput(input);
+  const nextToken =
+    projectInput.repoConfig.token ||
+    currentProject.repoConfig.token ||
+    getGithubAccessToken();
 
-  return updateProjectRow(getProjectRow(id), {
+  if (projectInput.repoConfig.provider !== currentProject.repoConfig.provider) {
+    throw new Error("Provider change is not supported yet.");
+  }
+
+  if (currentProject.repoConfig.provider !== "github") {
+    throw new Error("GitLab integration is not ready.");
+  }
+
+  if (projectInput.repoConfig.repoName !== currentProject.repoConfig.repoName) {
+    throw new Error("Repository change is not supported yet.");
+  }
+
+  if (!nextToken) {
+    throw new Error("Token is required.");
+  }
+
+  await validateGithubProject(
+    projectInput.repoConfig.repoName,
+    projectInput.repoConfig.baseBranch,
+    nextToken
+  );
+
+  if (projectInput.repoConfig.token) {
+    await updateGithubRemote({
+      repoName: currentProject.repoConfig.repoName,
+      repoPath: currentProject.repoConfig.managedRepoPath,
+      token: projectInput.repoConfig.token,
+    });
+  }
+
+  return updateProjectRow(row, {
     name: projectInput.name,
-    repoConfigJson: JSON.stringify(projectInput.repoConfig),
+    repoConfigJson: JSON.stringify({
+      ...currentProject.repoConfig,
+      baseBranch: projectInput.repoConfig.baseBranch,
+      token: nextToken,
+    } satisfies StoredProjectRepoConfig),
   });
 }
 
@@ -499,17 +640,17 @@ export async function createAlertRequest(id: string) {
 
   const item = toItem(getAlertRow(id));
   const row = getProjectRow(item.projectId);
-  const project = toProject(row);
+  const project = toStoredProject(row);
   const request = project.requestMap[item.id];
 
   if (request) {
-    return project;
+    return toProject(row);
   }
 
   return updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
-      [item.id]: createRequest(item, project.repoConfig),
+      [item.id]: await createRequest(item, project.repoConfig),
     }),
   });
 }
@@ -521,7 +662,7 @@ export async function mergeAlertRequest(id: string) {
 
   const item = toItem(getAlertRow(id));
   const row = getProjectRow(item.projectId);
-  const project = toProject(row);
+  const project = toStoredProject(row);
   const request = project.requestMap[item.id];
 
   if (!request) {
@@ -529,13 +670,13 @@ export async function mergeAlertRequest(id: string) {
   }
 
   if (request.state !== "open") {
-    return project;
+    return toProject(row);
   }
 
   return updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
-      [item.id]: mergeRequest(request),
+      [item.id]: await mergeRequest(request, project.repoConfig),
     }),
   });
 }
@@ -547,7 +688,7 @@ export async function closeAlertRequest(id: string) {
 
   const item = toItem(getAlertRow(id));
   const row = getProjectRow(item.projectId);
-  const project = toProject(row);
+  const project = toStoredProject(row);
   const request = project.requestMap[item.id];
 
   if (!request) {
@@ -555,13 +696,13 @@ export async function closeAlertRequest(id: string) {
   }
 
   if (request.state !== "open") {
-    return project;
+    return toProject(row);
   }
 
   return updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
-      [item.id]: closeRequest(request),
+      [item.id]: await closeRequest(request, project.repoConfig),
     }),
   });
 }

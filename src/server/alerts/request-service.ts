@@ -1,5 +1,11 @@
+import { prepareAlertBranch } from "@/server/projects/git-service";
+import {
+  closeGithubPullRequest,
+  createGithubPullRequest,
+  mergeGithubPullRequest,
+} from "@/server/projects/github-service";
 import type { Item } from "@/types/alert";
-import type { CodeRequest, ProjectRepoConfig } from "@/types/project";
+import type { CodeRequest, StoredProjectRepoConfig } from "@/types/project";
 
 // 标题转码
 function slugifyTitle(title: string) {
@@ -22,54 +28,79 @@ function buildBranchName(item: Item) {
   return `alert/${item.id.toLowerCase()}-${slug}-${stamp}-${nonce}`;
 }
 
-// 编号值
-function buildRemoteId() {
-  return Date.now().toString();
-}
-
-// 远端链
-function buildRequestUrl(config: ProjectRepoConfig, remoteId: string) {
-  if (config.provider === "gitlab") {
-    return `https://gitlab.com/${config.repoName}/-/merge_requests/${remoteId}`;
-  }
-
-  return `https://github.com/${config.repoName}/pull/${remoteId}`;
-}
-
 // 请求标题
 function buildRequestTitle(item: Item) {
   return `[${item.id}] ${item.title}`;
 }
 
-// 创建态
-export function createRequest(
-  item: Item,
-  config: ProjectRepoConfig
-): CodeRequest {
-  const now = new Date().toISOString();
-  const remoteId = buildRemoteId();
-
-  return rejectMockRequest({
-    baseBranch: config.baseBranch,
-    branchName: buildBranchName(item),
-    createdAt: now,
-    provider: config.provider,
-    remoteId,
-    repoName: config.repoName,
-    state: "open",
-    title: buildRequestTitle(item),
-    updatedAt: now,
-    url: buildRequestUrl(config, remoteId),
-  });
+// 请求描述
+function buildRequestBody(item: Item) {
+  return [`Auto created from alert ${item.id}.`, "", item.title].join("\n");
 }
 
-// 拒绝模拟
-function rejectMockRequest(_request: CodeRequest): never {
-  throw new Error("Real PR/MR integration is not ready.");
+// 平台校验
+function ensureGithub(config: StoredProjectRepoConfig) {
+  if (config.provider !== "github") {
+    throw new Error("GitLab integration is not ready.");
+  }
+
+  if (!(config.managedRepoPath && config.token)) {
+    throw new Error("Project is not connected yet.");
+  }
+}
+
+// 创建态
+export async function createRequest(
+  item: Item,
+  config: StoredProjectRepoConfig
+): Promise<CodeRequest> {
+  ensureGithub(config);
+  const now = new Date().toISOString();
+  const branchName = buildBranchName(item);
+  const title = buildRequestTitle(item);
+
+  await prepareAlertBranch({
+    baseBranch: config.baseBranch,
+    branchName,
+    item,
+    repoPath: config.managedRepoPath,
+  });
+
+  const remote = await createGithubPullRequest({
+    baseBranch: config.baseBranch,
+    body: buildRequestBody(item),
+    branchName,
+    repoName: config.repoName,
+    title,
+    token: config.token,
+  });
+
+  return {
+    baseBranch: config.baseBranch,
+    branchName,
+    createdAt: now,
+    provider: config.provider,
+    remoteId: remote.remoteId,
+    repoName: config.repoName,
+    state: "open",
+    title,
+    updatedAt: now,
+    url: remote.url,
+  };
 }
 
 // 合并态
-export function mergeRequest(request: CodeRequest): CodeRequest {
+export async function mergeRequest(
+  request: CodeRequest,
+  config: StoredProjectRepoConfig
+): Promise<CodeRequest> {
+  ensureGithub(config);
+  await mergeGithubPullRequest({
+    remoteId: request.remoteId,
+    repoName: request.repoName,
+    token: config.token,
+  });
+
   return {
     ...request,
     state: "merged",
@@ -78,7 +109,17 @@ export function mergeRequest(request: CodeRequest): CodeRequest {
 }
 
 // 关闭态
-export function closeRequest(request: CodeRequest): CodeRequest {
+export async function closeRequest(
+  request: CodeRequest,
+  config: StoredProjectRepoConfig
+): Promise<CodeRequest> {
+  ensureGithub(config);
+  await closeGithubPullRequest({
+    remoteId: request.remoteId,
+    repoName: request.repoName,
+    token: config.token,
+  });
+
   return {
     ...request,
     state: "closed",

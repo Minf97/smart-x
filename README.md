@@ -77,6 +77,14 @@ npm install
 npm run start
 ```
 
+4. Enable GitHub connect (optional)
+
+```bash
+export GITHUB_OAUTH_CLIENT_ID=your_github_oauth_app_client_id
+```
+
+The local GitHub connect flow needs `GITHUB_OAUTH_CLIENT_ID` to start device authorization and load writable repositories.
+
 Now you can go directly to `/src/routes/index.tsx` and modify the app as you want.
 
 > You can also delete the `/src/routes/second.tsx` file if you don't want a second page.

@@ -1,7 +1,17 @@
 import { ipc } from "@/ipc/manager";
 import type { Item, ItemStatus } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
-import type { Project, ProjectInput } from "@/types/project";
+import type {
+  GithubAuthState,
+  GithubDeviceFlow,
+  GithubDevicePoll,
+  GithubRepoItem,
+} from "@/types/github";
+import type {
+  Project,
+  ProjectInput,
+  ProjectValidationResult,
+} from "@/types/project";
 
 // 请求错
 class RequestError extends Error {
@@ -104,6 +114,42 @@ export async function closeAlertRequest(id: string) {
   });
 
   return readJson<Project>(response);
+}
+
+// GitHub状态
+export async function getGithubAuth() {
+  const url = await buildApiUrl("/github/auth");
+  const response = await fetch(url);
+
+  return readJson<GithubAuthState>(response);
+}
+
+// 启动GitHub
+export async function startGithubDeviceFlow() {
+  const url = await buildApiUrl("/github/device/start");
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<GithubDeviceFlow>(response);
+}
+
+// 轮询GitHub
+export async function pollGithubDeviceFlow(sessionId: string) {
+  const url = await buildApiUrl(`/github/device/${sessionId}/poll`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<GithubDevicePoll>(response);
+}
+
+// GitHub仓库
+export async function listGithubRepos() {
+  const url = await buildApiUrl("/github/repos");
+  const response = await fetch(url);
+
+  return readJson<GithubRepoItem[]>(response);
 }
 
 // 创建项目

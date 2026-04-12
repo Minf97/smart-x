@@ -2,12 +2,13 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
-import { alertsTable, projectsTable } from "./schema";
+import { alertsTable, githubAuthTable, projectsTable } from "./schema";
 
 function createDb(connection: Database.Database) {
   return drizzle(connection, {
     schema: {
       alertsTable,
+      githubAuthTable,
       projectsTable,
     },
   });
@@ -20,7 +21,7 @@ let db: LocalDb | null = null;
 
 // 库路径
 function getDbPath() {
-  return path.join(app.getPath("userData"), "alerts-mock-v3.sqlite");
+  return path.join(app.getPath("userData"), "alerts-mock-v5.sqlite");
 }
 
 // 建表句
@@ -42,6 +43,14 @@ function getSchemaSql() {
       position INTEGER NOT NULL,
       project_id TEXT NOT NULL,
       detail_json TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS github_auth (
+      id TEXT PRIMARY KEY NOT NULL,
+      access_token TEXT NOT NULL,
+      login TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL
     );
   `;
 }

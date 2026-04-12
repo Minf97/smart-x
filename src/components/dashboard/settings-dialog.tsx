@@ -17,13 +17,7 @@ import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import { useCurrentProject } from "@/hooks/use-projects";
 import { useProjectStore } from "@/store/project-store";
 import type { DashboardData } from "@/types/dashboard";
-import {
-  type Project,
-  type ProjectInput,
-  REQUEST_PROVIDER_LABELS,
-  type RequestProvider,
-} from "@/types/project";
-import { cn } from "@/utils/tailwind";
+import type { Project, ProjectInput } from "@/types/project";
 
 interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void;
@@ -48,7 +42,12 @@ function updateProjectCache(data: DashboardData | undefined, project: Project) {
 function getProjectInput(project: Project) {
   return {
     name: project.name,
-    repoConfig: project.repoConfig,
+    repoConfig: {
+      baseBranch: project.repoConfig.baseBranch,
+      provider: project.repoConfig.provider,
+      repoName: project.repoConfig.repoName,
+      token: "",
+    },
   } satisfies ProjectInput;
 }
 
@@ -85,7 +84,6 @@ export default function SettingsDialog({
   const disabled =
     mutation.isPending ||
     input.name.trim().length === 0 ||
-    input.repoConfig.repoName.trim().length === 0 ||
     input.repoConfig.baseBranch.trim().length === 0;
 
   useEffect(() => {
@@ -96,24 +94,21 @@ export default function SettingsDialog({
     setInput(getProjectInput(project));
   }, [open, project]);
 
-  // 更新字段
-  function setField(field: keyof ProjectInput, value: string) {
+  // 改名称
+  function handleNameChange(value: string) {
     setInput((current) => ({
       ...current,
-      [field]: value,
+      name: value,
     }));
   }
 
-  // 更新配置
-  function setRepoField<K extends keyof ProjectInput["repoConfig"]>(
-    field: K,
-    value: ProjectInput["repoConfig"][K]
-  ) {
+  // 改分支
+  function handleBaseBranchChange(value: string) {
     setInput((current) => ({
       ...current,
       repoConfig: {
         ...current.repoConfig,
-        [field]: value,
+        baseBranch: value,
       },
     }));
   }
@@ -127,7 +122,8 @@ export default function SettingsDialog({
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
         provider: input.repoConfig.provider,
-        repoName: input.repoConfig.repoName.trim(),
+        repoName: input.repoConfig.repoName,
+        token: "",
       },
     });
   }
@@ -150,45 +146,30 @@ export default function SettingsDialog({
               </span>
               <Input
                 id="project-name"
-                onChange={(event) => setField("name", event.target.value)}
+                onChange={(event) => handleNameChange(event.target.value)}
                 placeholder={t("dashboard.projectNamePlaceholder")}
                 value={input.name}
               />
             </label>
 
-            <div className="space-y-1.5">
+            <label className="block space-y-1.5" htmlFor="project-provider">
               <span className="font-medium text-xs">
                 {t("dashboard.provider")}
               </span>
-              <div className="grid grid-cols-2 gap-2">
-                {(["github", "gitlab"] as RequestProvider[]).map((provider) => (
-                  <Button
-                    className={cn(
-                      "justify-start",
-                      input.repoConfig.provider === provider &&
-                        "border-primary bg-muted"
-                    )}
-                    key={provider}
-                    onClick={() => setRepoField("provider", provider)}
-                    type="button"
-                    variant="outline"
-                  >
-                    {REQUEST_PROVIDER_LABELS[provider]}
-                  </Button>
-                ))}
-              </div>
-            </div>
+              <Input
+                disabled
+                id="project-provider"
+                value={input.repoConfig.provider}
+              />
+            </label>
 
             <label className="block space-y-1.5" htmlFor="project-repo-name">
               <span className="font-medium text-xs">
                 {t("dashboard.repository")}
               </span>
               <Input
+                disabled
                 id="project-repo-name"
-                onChange={(event) =>
-                  setRepoField("repoName", event.target.value)
-                }
-                placeholder={t("dashboard.repoNamePlaceholder")}
                 value={input.repoConfig.repoName}
               />
             </label>
@@ -199,9 +180,7 @@ export default function SettingsDialog({
               </span>
               <Input
                 id="project-base-branch"
-                onChange={(event) =>
-                  setRepoField("baseBranch", event.target.value)
-                }
+                onChange={(event) => handleBaseBranchChange(event.target.value)}
                 placeholder={t("dashboard.baseBranchPlaceholder")}
                 value={input.repoConfig.baseBranch}
               />
