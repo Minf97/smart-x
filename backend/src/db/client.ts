@@ -153,7 +153,11 @@ export function ensureSchema() {
     `);
 
     await db.execute(sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_project_group_key
+      DROP INDEX IF EXISTS idx_alerts_project_group_key;
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_alerts_project_group_key
       ON alerts(project_id, group_key);
     `);
   })();

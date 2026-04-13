@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { IngestPayload, Item } from "../../shared/types/alert";
 import type { ProjectRecord } from "../../shared/types/project";
 import { ensureSchema, getDb } from "./db/client";
@@ -101,70 +101,10 @@ export class BackendDatabase {
   async ingestAlert(projectId: string, payload: IngestPayload): Promise<Item> {
     await this.waitReady();
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(alertsTable)
-      .where(
-        and(
-          eq(alertsTable.projectId, projectId),
-          eq(alertsTable.groupKey, payload.groupKey)
-        )
-      )
-      .limit(1);
-    const row = rows[0];
-
-    if (row) {
-      const updatedAt = new Date().toISOString();
-      const lastSeenAt =
-        new Date(payload.occurredAt).getTime() >
-        new Date(row.lastSeenAt).getTime()
-          ? payload.occurredAt
-          : row.lastSeenAt;
-      const nextCount = row.occurrenceCount + payload.count;
-      const currentItem = toAlertItem(row);
-      const detail = buildAlertDetail(
-        {
-          count: nextCount,
-          environment: payload.environment,
-          firstSeenAt: row.firstSeenAt,
-          groupKey: payload.groupKey,
-          lastSeenAt,
-          message: payload.message,
-          rawAlert: payload.rawAlert,
-          source: payload.source,
-          sourceUrl: payload.sourceUrl,
-          stack: payload.stack,
-        },
-        currentItem.detail
-      );
-      const updatedRows = await db
-        .update(alertsTable)
-        .set({
-          detailJson: stringifyJson(detail),
-          environment: payload.environment,
-          lastSeenAt,
-          message: payload.message,
-          occurrenceCount: nextCount,
-          priority: payload.priority,
-          rawAlertJson: stringifyJson(payload.rawAlert),
-          source: payload.source,
-          sourceUrl: payload.sourceUrl,
-          stack: payload.stack,
-          title: payload.title,
-          updatedAt,
-        })
-        .where(eq(alertsTable.id, row.id))
-        .returning();
-      const updatedRow = updatedRows[0];
-
-      if (!updatedRow) {
-        throw new Error("Failed to update alert.");
-      }
-
-      return toAlertItem(updatedRow);
-    }
-
     const now = new Date().toISOString();
+    // TODO: 1.校验 payload 格式，2.如果不符合我们要求的格式，就需要调用 AI 接口进行转换
+
+    // 构建 detail-content 所需要的字段
     const detail = buildAlertDetail({
       count: payload.count,
       environment: payload.environment,
@@ -177,6 +117,7 @@ export class BackendDatabase {
       sourceUrl: payload.sourceUrl,
       stack: payload.stack,
     });
+    // 构建入库的报警记录数据结构
     const alert: typeof alertsTable.$inferInsert = {
       createdAt: now,
       detailJson: stringifyJson(detail),
