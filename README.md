@@ -85,6 +85,25 @@ export GITHUB_OAUTH_CLIENT_ID=your_github_oauth_app_client_id
 
 The local GitHub connect flow needs `GITHUB_OAUTH_CLIENT_ID` to start device authorization and load writable repositories.
 
+5. Start the remote webhook backend (optional)
+
+```bash
+export DATABASE_URL=postgres://user:password@host:5432/database
+npm run backend:start
+```
+
+The backend serves `POST /projects`, `POST /ingest/:webhookId`, and `GET /projects/:projectId/alerts` on `http://localhost:8788` by default.
+
+6. Deploy the webhook backend to Vercel (optional)
+
+- Create a separate Vercel project for `backend`
+- Set the Vercel `Root Directory` to `backend`
+- Install a Postgres provider such as `Neon` in Vercel Marketplace
+- Vercel will inject `DATABASE_URL` after the database is connected
+- Set `BACKEND_BASE_URL` to your deployed backend URL
+- Vercel uses `backend/index.ts` as the Hono entry
+- Check the deployment with `GET /health`
+
 Now you can go directly to `/src/routes/index.tsx` and modify the app as you want.
 
 > You can also delete the `/src/routes/second.tsx` file if you don't want a second page.
