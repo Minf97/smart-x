@@ -1,5 +1,5 @@
+import type { ItemPriority, ItemStatus } from "@shared/types/alert";
 import { create } from "zustand";
-import type { ItemPriority, ItemStatus } from "@/types/alert";
 
 // 标签项
 interface FilterTag {

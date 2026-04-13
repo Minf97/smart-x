@@ -1,3 +1,4 @@
+import type { ItemStatus } from "@shared/types/alert";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -6,7 +7,6 @@ import RequestActions from "@/components/dashboard/request-actions";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
-import type { ItemStatus } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
 
 // 状态文案

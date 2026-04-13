@@ -1,5 +1,5 @@
-import type { Item } from "./alert";
-import type { Project } from "./project";
+import type { Item } from "@shared/types/alert";
+import type { Project } from "@shared/types/project";
 
 // 面板数据
 export interface DashboardData {

@@ -1,8 +1,8 @@
+import { ITEM_PRIORITY_VALUES, ITEM_STATUS_VALUES } from "@shared/types/alert";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useAlertStore } from "@/store/alert-store";
-import { ITEM_PRIORITY_VALUES, ITEM_STATUS_VALUES } from "@/types/alert";
 import { cn } from "@/utils/tailwind";
 import {
   getPriorityColor,

@@ -1,18 +1,18 @@
-import type { TFunction } from "i18next";
-import { Check, Circle } from "lucide-react";
 import {
   ITEM_PRIORITY_I18N_KEYS,
   ITEM_STATUS_I18N_KEYS,
   type Item,
   type ItemPriority,
   type ItemStatus,
-} from "@/types/alert";
+} from "@shared/types/alert";
 import {
   REQUEST_PROVIDER_LABELS,
   REQUEST_STATE_I18N_KEYS,
   type RequestProvider,
   type RequestState,
-} from "@/types/project";
+} from "@shared/types/project";
+import type { TFunction } from "i18next";
+import { Check, Circle } from "lucide-react";
 
 // 状态图标
 export function getStatusIcon(status: ItemStatus) {

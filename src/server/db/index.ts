@@ -21,7 +21,7 @@ let db: LocalDb | null = null;
 
 // 库路径
 function getDbPath() {
-  return path.join(app.getPath("userData"), "alerts-mock-v5.sqlite");
+  return path.join(app.getPath("userData"), "alerts-mock-v6.sqlite");
 }
 
 // 建表句
@@ -32,7 +32,12 @@ function getSchemaSql() {
       name TEXT NOT NULL,
       position INTEGER NOT NULL,
       repo_config_json TEXT NOT NULL,
-      request_map_json TEXT NOT NULL
+      request_map_json TEXT NOT NULL,
+      webhook_id TEXT NOT NULL,
+      webhook_url TEXT NOT NULL,
+      webhook_enabled INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS alerts (
@@ -42,7 +47,23 @@ function getSchemaSql() {
       priority TEXT NOT NULL,
       position INTEGER NOT NULL,
       project_id TEXT NOT NULL,
-      detail_json TEXT NOT NULL
+      group_key TEXT NOT NULL,
+      source_url TEXT,
+      message TEXT NOT NULL,
+      stack TEXT,
+      raw_alert_json TEXT NOT NULL,
+      source TEXT NOT NULL,
+      environment TEXT,
+      first_seen_at TEXT,
+      last_seen_at TEXT,
+      occurrence_count INTEGER NOT NULL,
+      is_read INTEGER NOT NULL,
+      read_at TEXT,
+      is_synced_local INTEGER NOT NULL,
+      synced_at TEXT,
+      detail_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS github_auth (

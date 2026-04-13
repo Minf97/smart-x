@@ -1,3 +1,4 @@
+import type { Project, ProjectInput } from "@shared/types/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,7 +18,6 @@ import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import { useCurrentProject } from "@/hooks/use-projects";
 import { useProjectStore } from "@/store/project-store";
 import type { DashboardData } from "@/types/dashboard";
-import type { Project, ProjectInput } from "@/types/project";
 
 interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void;

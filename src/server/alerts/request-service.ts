@@ -1,11 +1,14 @@
+import type { Item } from "@shared/types/alert";
+import type {
+  CodeRequest,
+  StoredProjectRepoConfig,
+} from "@shared/types/project";
 import { prepareAlertBranch } from "@/server/projects/git-service";
 import {
   closeGithubPullRequest,
   createGithubPullRequest,
   mergeGithubPullRequest,
 } from "@/server/projects/github-service";
-import type { Item } from "@/types/alert";
-import type { CodeRequest, StoredProjectRepoConfig } from "@/types/project";
 
 // 标题转码
 function slugifyTitle(title: string) {

@@ -1,3 +1,4 @@
+import type { Project, ProjectInput } from "@shared/types/project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +25,6 @@ import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import { useProjectStore } from "@/store/project-store";
 import type { DashboardData } from "@/types/dashboard";
 import type { GithubDeviceFlow, GithubRepoItem } from "@/types/github";
-import type { Project, ProjectInput } from "@/types/project";
 
 const GITHUB_AUTH_QUERY_KEY = ["github-auth"] as const;
 const GITHUB_REPOS_QUERY_KEY = ["github-repos"] as const;

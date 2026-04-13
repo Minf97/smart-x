@@ -1,10 +1,10 @@
+import type { Item } from "@shared/types/alert";
 import { useTranslation } from "react-i18next";
 import {
   getFixPatch,
   getFixSummary,
   getRootCause,
 } from "@/components/dashboard/helpers";
-import type { Item } from "@/types/alert";
 
 interface DetailAnalysisProps {
   item: Item;

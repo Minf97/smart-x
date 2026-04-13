@@ -1,5 +1,19 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import type {
+  Detail,
+  Item,
+  ItemPriority,
+  ItemStatus,
+} from "@shared/types/alert";
+import { ITEM_STATUS_VALUES } from "@shared/types/alert";
+import {
+  type CodeRequest,
+  type Project,
+  type ProjectInput,
+  REQUEST_PROVIDER_VALUES,
+  type StoredProjectRepoConfig,
+} from "@shared/types/project";
 import { asc, eq } from "drizzle-orm";
 import { app } from "electron";
 import { z } from "zod";
@@ -18,16 +32,7 @@ import {
   updateGithubRemote,
 } from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
-import type { Detail, Item, ItemStatus } from "@/types/alert";
-import { ITEM_STATUS_VALUES } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
-import {
-  type CodeRequest,
-  type Project,
-  type ProjectInput,
-  REQUEST_PROVIDER_VALUES,
-  type StoredProjectRepoConfig,
-} from "@/types/project";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
 interface StoredProject extends Omit<Project, "repoConfig"> {
@@ -59,9 +64,13 @@ export const validateProjectSchema = projectSchema.extend({
 export const createProjectSchema = projectSchema;
 export const updateProjectSchema = projectSchema;
 
+const MOCK_CREATED_AT = "2026-04-13T08:00:00.000Z";
+const MOCK_UPDATED_AT = "2026-04-13T08:30:00.000Z";
+
 // 项目种子
 const defaultProjects = [
   {
+    createdAt: MOCK_CREATED_AT,
     id: "client",
     name: "Client App",
     repoConfig: {
@@ -72,8 +81,13 @@ const defaultProjects = [
       token: "",
     },
     requestMap: {},
+    updatedAt: MOCK_UPDATED_AT,
+    webhookEnabled: false,
+    webhookId: "mock-client",
+    webhookUrl: "https://mock.local/ingest/client",
   },
   {
+    createdAt: MOCK_CREATED_AT,
     id: "server",
     name: "Server API",
     repoConfig: {
@@ -84,11 +98,57 @@ const defaultProjects = [
       token: "",
     },
     requestMap: {},
+    updatedAt: MOCK_UPDATED_AT,
+    webhookEnabled: false,
+    webhookId: "mock-server",
+    webhookUrl: "https://mock.local/ingest/server",
   },
 ] satisfies StoredProject[];
 
+// 造报警
+function createMockItem(input: {
+  detail: Detail;
+  id: string;
+  priority: ItemPriority;
+  projectId: string;
+  status: ItemStatus;
+  title: string;
+}) {
+  const groupKey = input.detail.error.groupKey ?? input.id.toLowerCase();
+
+  return {
+    createdAt: MOCK_CREATED_AT,
+    detail: {
+      ...input.detail,
+      error: {
+        ...input.detail.error,
+        groupKey,
+        rawAlert: input.detail.error.rawAlert ?? {
+          message: input.detail.error.message,
+          stack: input.detail.error.stack ?? null,
+        },
+      },
+      summary: {
+        ...input.detail.summary,
+        occurrenceCount: input.detail.summary.occurrenceCount ?? 1,
+      },
+    },
+    groupKey,
+    id: input.id,
+    isRead: false,
+    isSyncedLocal: true,
+    priority: input.priority,
+    projectId: input.projectId,
+    readAt: null,
+    status: input.status,
+    syncedAt: MOCK_UPDATED_AT,
+    title: input.title,
+    updatedAt: MOCK_UPDATED_AT,
+  } satisfies Item;
+}
+
 // 默认种子
-const defaultAlerts = [
+const defaultAlertInputs = [
   {
     detail: {
       analysis: {
@@ -116,7 +176,7 @@ const defaultAlerts = [
           "The component reads list data before the request is ready, so the map call receives undefined.",
       },
       error: {
-        fingerprint: "home-page-map-undefined",
+        groupKey: "home-page-map-undefined",
         message: "TypeError: Cannot read property 'map' of undefined",
         stack: `TypeError: Cannot read property 'map' of undefined
 at HomePage.render (src/pages/HomePage.tsx:45:12)
@@ -147,7 +207,7 @@ at updateComponent (react-dom.js:456:23)`,
           "The users endpoint exceeds the gateway timeout under heavy query load.",
       },
       error: {
-        fingerprint: "api-users-timeout",
+        groupKey: "api-users-timeout",
         message: "API Timeout /api/users endpoint",
         stack: "TimeoutError: request timed out at GET /api/users",
       },
@@ -169,7 +229,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "node-worker-memory-leak",
+        groupKey: "node-worker-memory-leak",
         message: "Memory leak detected in Node worker process",
         stack: "WorkerHeapWarning: retained objects keep growing",
       },
@@ -191,7 +251,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "db-pool-exhausted",
+        groupKey: "db-pool-exhausted",
         message: "Database connection pool exhausted",
         stack: "PoolError: no connections available",
       },
@@ -213,7 +273,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "payment-rate-limit",
+        groupKey: "payment-rate-limit",
         message: "Rate limit exceeded on payment gateway",
         stack: "GatewayError: too many payment requests",
       },
@@ -235,7 +295,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "redis-cache-miss",
+        groupKey: "redis-cache-miss",
         message: "Redis cache miss rate above threshold",
         stack: "MonitorNotice: cache miss rate > 40%",
       },
@@ -257,7 +317,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "s3-upload-timeout",
+        groupKey: "s3-upload-timeout",
         message: "S3 upload timeout for large files",
         stack: "UploadTimeout: multipart upload timed out",
       },
@@ -279,7 +339,7 @@ at updateComponent (react-dom.js:456:23)`,
   {
     detail: {
       error: {
-        fingerprint: "ws-connection-drops",
+        groupKey: "ws-connection-drops",
         message: "WebSocket connection drops frequently",
         stack: "SocketError: connection closed unexpectedly",
       },
@@ -298,34 +358,74 @@ at updateComponent (react-dom.js:456:23)`,
     status: "todo",
     title: "WebSocket connection drops frequently",
   },
-] satisfies Item[];
+] satisfies Array<{
+  detail: Detail;
+  id: string;
+  priority: ItemPriority;
+  projectId: string;
+  status: ItemStatus;
+  title: string;
+}>;
+
+const defaultAlerts = defaultAlertInputs.map(createMockItem);
 
 // 延迟器
 async function delay(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 读JSON
+function parseJson<T>(value: string) {
+  return JSON.parse(value) as T;
+}
+
+// 写JSON
+function stringifyJson(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
 // 转行数据
 function toAlertRow(item: Item, position: number): NewAlertRow {
   return {
-    detailJson: JSON.stringify(item.detail),
+    createdAt: item.createdAt,
+    detailJson: stringifyJson(item.detail),
+    environment: item.detail.summary.environment ?? null,
+    firstSeenAt: item.detail.summary.firstSeenAt ?? null,
+    groupKey: item.groupKey,
     id: item.id,
+    isRead: item.isRead,
+    isSyncedLocal: item.isSyncedLocal,
+    lastSeenAt: item.detail.summary.lastSeenAt ?? null,
+    message: item.detail.error.message,
+    occurrenceCount: item.detail.summary.occurrenceCount ?? 1,
     position,
     priority: item.priority,
     projectId: item.projectId,
+    rawAlertJson: stringifyJson(item.detail.error.rawAlert),
+    readAt: item.readAt ?? null,
+    source: item.detail.summary.source,
+    sourceUrl: item.detail.summary.sourceUrl ?? null,
     status: item.status,
+    syncedAt: item.syncedAt ?? null,
+    stack: item.detail.error.stack ?? null,
     title: item.title,
+    updatedAt: item.updatedAt,
   };
 }
 
 // 转项目行
 function toProjectRow(project: StoredProject, position: number): NewProjectRow {
   return {
+    createdAt: project.createdAt,
     id: project.id,
     name: project.name,
     position,
-    repoConfigJson: JSON.stringify(project.repoConfig),
-    requestMapJson: JSON.stringify(project.requestMap),
+    repoConfigJson: stringifyJson(project.repoConfig),
+    requestMapJson: stringifyJson(project.requestMap),
+    updatedAt: project.updatedAt,
+    webhookEnabled: project.webhookEnabled,
+    webhookId: project.webhookId,
+    webhookUrl: project.webhookUrl,
   };
 }
 
@@ -365,13 +465,40 @@ function toProjectConfig(config: StoredProjectRepoConfig) {
 
 // 转报警
 function toItem(row: AlertRow): Item {
+  const detail = parseJson<Detail>(row.detailJson);
+
   return {
-    detail: JSON.parse(row.detailJson) as Detail,
+    createdAt: row.createdAt,
+    detail: {
+      analysis: detail.analysis,
+      error: {
+        ...detail.error,
+        groupKey: row.groupKey,
+        message: row.message,
+        rawAlert: parseJson<unknown>(row.rawAlertJson),
+        stack: row.stack,
+      },
+      summary: {
+        ...detail.summary,
+        environment: row.environment,
+        firstSeenAt: row.firstSeenAt,
+        lastSeenAt: row.lastSeenAt,
+        occurrenceCount: row.occurrenceCount,
+        source: row.source,
+        sourceUrl: row.sourceUrl,
+      },
+    },
+    groupKey: row.groupKey,
     id: row.id,
+    isRead: row.isRead,
+    isSyncedLocal: row.isSyncedLocal,
     priority: row.priority,
     projectId: row.projectId,
+    readAt: row.readAt,
     status: row.status,
+    syncedAt: row.syncedAt,
     title: row.title,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -380,20 +507,30 @@ function toProject(row: ProjectRow): Project {
   const project = toStoredProject(row);
 
   return {
+    createdAt: project.createdAt,
     id: project.id,
     name: project.name,
     repoConfig: toProjectConfig(project.repoConfig),
     requestMap: project.requestMap,
+    updatedAt: project.updatedAt,
+    webhookEnabled: project.webhookEnabled,
+    webhookId: project.webhookId,
+    webhookUrl: project.webhookUrl,
   };
 }
 
 // 转存储项目
 function toStoredProject(row: ProjectRow): StoredProject {
   return {
+    createdAt: row.createdAt,
     id: row.id,
     name: row.name,
-    repoConfig: JSON.parse(row.repoConfigJson) as StoredProjectRepoConfig,
-    requestMap: JSON.parse(row.requestMapJson) as Record<string, CodeRequest>,
+    repoConfig: parseJson<StoredProjectRepoConfig>(row.repoConfigJson),
+    requestMap: parseJson<Record<string, CodeRequest>>(row.requestMapJson),
+    updatedAt: row.updatedAt,
+    webhookEnabled: row.webhookEnabled,
+    webhookId: row.webhookId,
+    webhookUrl: row.webhookUrl,
   };
 }
 
@@ -439,7 +576,7 @@ function listProjectRows() {
 // 写单条
 function updateAlertRow(
   row: AlertRow,
-  patch: Partial<Pick<AlertRow, "status">>
+  patch: Partial<Pick<AlertRow, "status" | "updatedAt">>
 ) {
   const db = getDb();
 
@@ -454,7 +591,18 @@ function updateAlertRow(
 // 写项目
 function updateProjectRow(
   row: ProjectRow,
-  patch: Partial<Pick<ProjectRow, "name" | "repoConfigJson" | "requestMapJson">>
+  patch: Partial<
+    Pick<
+      ProjectRow,
+      | "name"
+      | "repoConfigJson"
+      | "requestMapJson"
+      | "updatedAt"
+      | "webhookEnabled"
+      | "webhookId"
+      | "webhookUrl"
+    >
+  >
 ) {
   const db = getDb();
 
@@ -534,7 +682,10 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   ensureSeeded();
   await delay(360);
 
-  return updateAlertRow(getAlertRow(id), { status });
+  return updateAlertRow(getAlertRow(id), {
+    status,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 // 创建项目
@@ -548,7 +699,9 @@ export async function createProject(input: ProjectInput) {
   const token = resolveGithubToken(projectInput.repoConfig.token);
   const validated = await validateProjectConnection(projectInput);
   const projectId = randomUUID();
+  const now = new Date().toISOString();
   const storedProject = {
+    createdAt: now,
     id: projectId,
     name: projectInput.name,
     repoConfig: {
@@ -559,6 +712,10 @@ export async function createProject(input: ProjectInput) {
       token,
     },
     requestMap: {},
+    updatedAt: now,
+    webhookEnabled: false,
+    webhookId: `local-${projectId}`,
+    webhookUrl: "",
   } satisfies StoredProject;
 
   await cloneGithubRepo({
@@ -573,10 +730,15 @@ export async function createProject(input: ProjectInput) {
     .run();
 
   return {
+    createdAt: storedProject.createdAt,
     id: storedProject.id,
     name: storedProject.name,
     repoConfig: toProjectConfig(storedProject.repoConfig),
     requestMap: storedProject.requestMap,
+    updatedAt: storedProject.updatedAt,
+    webhookEnabled: storedProject.webhookEnabled,
+    webhookId: storedProject.webhookId,
+    webhookUrl: storedProject.webhookUrl,
   } satisfies Project;
 }
 
@@ -630,6 +792,7 @@ export async function updateProject(id: string, input: ProjectInput) {
       baseBranch: projectInput.repoConfig.baseBranch,
       token: nextToken,
     } satisfies StoredProjectRepoConfig),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -652,6 +815,7 @@ export async function createAlertRequest(id: string) {
       ...project.requestMap,
       [item.id]: await createRequest(item, project.repoConfig),
     }),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -678,6 +842,7 @@ export async function mergeAlertRequest(id: string) {
       ...project.requestMap,
       [item.id]: await mergeRequest(request, project.repoConfig),
     }),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -704,5 +869,6 @@ export async function closeAlertRequest(id: string) {
       ...project.requestMap,
       [item.id]: await closeRequest(request, project.repoConfig),
     }),
+    updatedAt: new Date().toISOString(),
   });
 }

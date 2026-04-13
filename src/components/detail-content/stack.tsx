@@ -1,6 +1,6 @@
+import type { Item } from "@shared/types/alert";
 import { useTranslation } from "react-i18next";
 import { getStack } from "@/components/dashboard/helpers";
-import type { Item } from "@/types/alert";
 
 interface DetailStackProps {
   item: Item;

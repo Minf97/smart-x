@@ -1,3 +1,4 @@
+import type { CodeRequest } from "@shared/types/project";
 import { useTranslation } from "react-i18next";
 import {
   getProviderLabel,
@@ -6,7 +7,6 @@ import {
 } from "@/components/dashboard/helpers";
 import ExternalLink from "@/components/external-link";
 import { Badge } from "@/components/ui/badge";
-import type { CodeRequest } from "@/types/project";
 
 interface DetailRequestProps {
   request: CodeRequest | null;

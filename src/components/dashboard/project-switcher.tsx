@@ -1,4 +1,5 @@
 import { SiGithub, SiGitlab } from "@icons-pack/react-simple-icons";
+import type { RequestProvider } from "@shared/types/project";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCurrentProject, useProjects } from "@/hooks/use-projects";
 import { useProjectStore } from "@/store/project-store";
-import type { RequestProvider } from "@/types/project";
 import { cn } from "@/utils/tailwind";
 import CreateProjectDialog from "./create-project-dialog";
 

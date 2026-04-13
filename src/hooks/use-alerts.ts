@@ -1,11 +1,11 @@
+import type { Item } from "@shared/types/alert";
+import type { CodeRequest } from "@shared/types/project";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { listAlerts } from "@/api/alerts";
 import { getCurrentProject } from "@/hooks/use-projects";
 import { useAlertStore } from "@/store/alert-store";
 import { useProjectStore } from "@/store/project-store";
-import type { Item } from "@/types/alert";
-import type { CodeRequest } from "@/types/project";
 
 // 查询键
 export const ALERTS_QUERY_KEY = ["alerts"] as const;

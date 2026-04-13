@@ -1,5 +1,6 @@
+import type { Item, ItemStatus } from "@shared/types/alert";
+import type { Project, ProjectInput } from "@shared/types/project";
 import { ipc } from "@/ipc/manager";
-import type { Item, ItemStatus } from "@/types/alert";
 import type { DashboardData } from "@/types/dashboard";
 import type {
   GithubAuthState,
@@ -7,11 +8,6 @@ import type {
   GithubDevicePoll,
   GithubRepoItem,
 } from "@/types/github";
-import type {
-  Project,
-  ProjectInput,
-  ProjectValidationResult,
-} from "@/types/project";
 
 // 请求错
 class RequestError extends Error {

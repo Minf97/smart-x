@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { Item } from "@/types/alert";
+import type { Item } from "@shared/types/alert";
 
 interface GitRunOptions {
   cwd?: string;

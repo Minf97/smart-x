@@ -1,6 +1,6 @@
+import type { Item } from "@shared/types/alert";
 import { useTranslation } from "react-i18next";
 import { getLastSeen } from "@/components/dashboard/helpers";
-import type { Item } from "@/types/alert";
 
 interface DetailActivityProps {
   item: Item;

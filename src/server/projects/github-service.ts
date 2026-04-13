@@ -1,5 +1,5 @@
+import type { ProjectValidationResult } from "@shared/types/project";
 import type { GithubAuthState, GithubRepoItem } from "@/types/github";
-import type { ProjectValidationResult } from "@/types/project";
 
 interface GithubRepoResponse {
   default_branch: string;

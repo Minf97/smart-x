@@ -1,5 +1,5 @@
+import type { Project } from "@shared/types/project";
 import { create } from "zustand";
-import type { Project } from "@/types/project";
 
 // 状态结构
 interface ProjectStore {

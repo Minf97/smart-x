@@ -1,3 +1,4 @@
+import type { Project } from "@shared/types/project";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,7 +13,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import { useProjectStore } from "@/store/project-store";
 import type { DashboardData } from "@/types/dashboard";
-import type { Project } from "@/types/project";
 
 type RequestAction = "close" | "create" | "merge";
 

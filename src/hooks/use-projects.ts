@@ -1,6 +1,6 @@
+import type { Project } from "@shared/types/project";
 import { useMemo } from "react";
 import { useProjectStore } from "@/store/project-store";
-import type { Project } from "@/types/project";
 
 // 当前项目
 export function getCurrentProject(

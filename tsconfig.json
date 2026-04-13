@@ -16,11 +16,18 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"]
     },
     "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "./package.json", "./forge.config.ts", "*.mts"]
+  "include": [
+    "src/**/*",
+    "shared/types/**/*",
+    "./package.json",
+    "./forge.config.ts",
+    "*.mts"
+  ]
 }
