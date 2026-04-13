@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { z } from "zod";
 import { normalizePayload } from "./alert-normalizer";
 import { BackendDatabase } from "./db";
+import { hasDatabaseUrl } from "./db/client";
 
 export const app = new Hono();
 const db = new BackendDatabase();
@@ -31,9 +32,19 @@ function getRequestBaseUrl(url: string) {
 
 app.use("*", cors());
 
+app.onError((error, context) => {
+  return context.json(
+    {
+      message: toMessage(error, "Internal server error."),
+    },
+    500
+  );
+});
+
 // 健康检
 app.get("/health", (context) => {
   return context.json({
+    databaseConfigured: hasDatabaseUrl(),
     ok: true,
   });
 });

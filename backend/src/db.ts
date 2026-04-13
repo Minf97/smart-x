@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { IngestPayload, Item } from "../../shared/types/alert";
 import type { ProjectRecord } from "../../shared/types/project";
-import { db, ensureSchema } from "./db/client";
+import { ensureSchema, getDb } from "./db/client";
 import { alertsTable, projectsTable } from "./db/schema";
 import {
   buildAlertDetail,
@@ -37,20 +37,15 @@ function buildWebhookUrl(webhookId: string, baseUrl?: string) {
 
 // 存储层
 export class BackendDatabase {
-  private readonly ready: Promise<void>;
-
-  constructor() {
-    this.ready = ensureSchema();
-  }
-
   // 等待库
   private async waitReady() {
-    await this.ready;
+    await ensureSchema();
   }
 
   // 建项目
   async createProject(name: string, baseUrl?: string): Promise<ProjectRecord> {
     await this.waitReady();
+    const db = getDb();
     const now = new Date().toISOString();
     const id = `pj_${randomUUID().replaceAll("-", "")}`;
     const webhookId = `wk_${randomUUID().replaceAll("-", "")}`;
@@ -78,6 +73,7 @@ export class BackendDatabase {
     webhookId: string
   ): Promise<ProjectRecord | null> {
     await this.waitReady();
+    const db = getDb();
     const rows = await db
       .select()
       .from(projectsTable)
@@ -91,6 +87,7 @@ export class BackendDatabase {
   // 查报警
   async listAlerts(projectId: string): Promise<Item[]> {
     await this.waitReady();
+    const db = getDb();
     const rows = await db
       .select()
       .from(alertsTable)
@@ -103,6 +100,7 @@ export class BackendDatabase {
   // 写报警
   async ingestAlert(projectId: string, payload: IngestPayload): Promise<Item> {
     await this.waitReady();
+    const db = getDb();
     const rows = await db
       .select()
       .from(alertsTable)
