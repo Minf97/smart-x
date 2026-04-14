@@ -78,6 +78,7 @@ export interface CodeRequest {
 export interface ProjectRepoConfig {
   baseBranch: string; // 基线
   hasToken: boolean; // 凭证
+  instanceUrl: string; // 地址
   managedRepoPath: string; // 路径
   provider: RequestProvider; // 平台
   repoName: string; // 仓库
@@ -86,6 +87,7 @@ export interface ProjectRepoConfig {
 // 存储配置
 export interface StoredProjectRepoConfig {
   baseBranch: string; // 基线
+  instanceUrl: string; // 地址
   managedRepoPath: string; // 路径
   provider: RequestProvider; // 平台
   repoName: string; // 仓库
@@ -107,6 +109,7 @@ export interface ProjectInput {
 // 校验结果
 export interface ProjectValidationResult {
   baseBranch: string; // 基线
+  instanceUrl: string; // 地址
   provider: RequestProvider; // 平台
   repoName: string; // 仓库
 }

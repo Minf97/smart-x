@@ -12,6 +12,12 @@ import type {
   GithubDevicePoll,
   GithubRepoItem,
 } from "@/types/github";
+import type {
+  GitlabAuthState,
+  GitlabOauthFlow,
+  GitlabOauthPoll,
+  GitlabRepoItem,
+} from "@/types/gitlab";
 
 // 请求错
 class RequestError extends Error {
@@ -35,7 +41,16 @@ async function buildApiUrl(path: string) {
 
 // 读结果
 async function readJson<T>(response: Response) {
-  const data = (await response.json()) as T | { message?: string };
+  const text = await response.text();
+  let data: T | { message?: string } | null = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text) as T | { message?: string };
+    } catch {
+      throw new RequestError(text);
+    }
+  }
 
   if (!response.ok) {
     const message = getErrorMessage(data);
@@ -160,6 +175,49 @@ export async function listGithubRepos() {
   const response = await fetch(url);
 
   return readJson<GithubRepoItem[]>(response);
+}
+
+// GitLab状态
+export async function getGitlabAuth() {
+  const url = await buildApiUrl("/gitlab/auth");
+  const response = await fetch(url);
+
+  return readJson<GitlabAuthState>(response);
+}
+
+// 启动GitLab
+export async function startGitlabOauthFlow(baseUrl: string, clientId: string) {
+  const url = await buildApiUrl("/gitlab/oauth/start");
+  const response = await fetch(url, {
+    body: JSON.stringify({
+      baseUrl,
+      clientId,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return readJson<GitlabOauthFlow>(response);
+}
+
+// 轮询GitLab
+export async function pollGitlabOauthFlow(sessionId: string) {
+  const url = await buildApiUrl(`/gitlab/oauth/${sessionId}/poll`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<GitlabOauthPoll>(response);
+}
+
+// GitLab仓库
+export async function listGitlabRepos() {
+  const url = await buildApiUrl("/gitlab/repos");
+  const response = await fetch(url);
+
+  return readJson<GitlabRepoItem[]>(response);
 }
 
 // 创建项目

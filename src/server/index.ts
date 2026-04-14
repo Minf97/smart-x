@@ -6,6 +6,8 @@ import { cors } from "hono/cors";
 import { alertsRouter } from "./alerts/routes";
 import { closeLocalDatabase, initLocalDatabase } from "./db";
 import { githubRouter } from "./github/routes";
+import { stopGitlabCallbackServer } from "./gitlab/auth-service";
+import { gitlabRouter } from "./gitlab/routes";
 import { projectsRouter } from "./projects/routes";
 
 let alertsApiOrigin = "";
@@ -18,6 +20,7 @@ function buildServerApp() {
 
   app.use("*", cors());
   app.route("/", alertsRouter);
+  app.route("/", gitlabRouter);
   app.route("/", githubRouter);
   app.route("/", projectsRouter);
 
@@ -72,6 +75,7 @@ export function stopLocalApiServer() {
   }
 
   server.close();
+  stopGitlabCallbackServer();
   closeLocalDatabase();
   server = null;
   startPromise = null;

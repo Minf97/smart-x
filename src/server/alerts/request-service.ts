@@ -3,12 +3,22 @@ import type {
   CodeRequest,
   StoredProjectRepoConfig,
 } from "@shared/types/project";
-import { prepareAlertBranch } from "@/server/projects/git-service";
+import { getGithubAccessToken } from "@/server/github/auth-service";
+import { getGitlabAccessToken } from "@/server/gitlab/auth-service";
+import {
+  prepareAlertBranch,
+  updateManagedRemote,
+} from "@/server/projects/git-service";
 import {
   closeGithubPullRequest,
   createGithubPullRequest,
   mergeGithubPullRequest,
 } from "@/server/projects/github-service";
+import {
+  closeGitlabMergeRequest,
+  createGitlabMergeRequest,
+  mergeGitlabMergeRequest,
+} from "@/server/projects/gitlab-service";
 
 // 标题转码
 function slugifyTitle(title: string) {
@@ -41,15 +51,17 @@ function buildRequestBody(item: Item) {
   return [`Auto created from alert ${item.id}.`, "", item.title].join("\n");
 }
 
-// 平台校验
-function ensureGithub(config: StoredProjectRepoConfig) {
-  if (config.provider !== "github") {
-    throw new Error("GitLab integration is not ready.");
-  }
-
-  if (!(config.managedRepoPath && config.token)) {
+// 取平台令牌
+function resolveProviderToken(config: StoredProjectRepoConfig) {
+  if (!config.managedRepoPath) {
     throw new Error("Project is not connected yet.");
   }
+
+  if (config.provider === "gitlab") {
+    return getGitlabAccessToken();
+  }
+
+  return Promise.resolve(config.token || getGithubAccessToken());
 }
 
 // 创建态
@@ -57,10 +69,18 @@ export async function createRequest(
   item: Item,
   config: StoredProjectRepoConfig
 ): Promise<CodeRequest> {
-  ensureGithub(config);
   const now = new Date().toISOString();
   const branchName = buildBranchName(item);
   const title = buildRequestTitle(item);
+  const token = await resolveProviderToken(config);
+
+  await updateManagedRemote({
+    instanceUrl: config.instanceUrl,
+    provider: config.provider,
+    repoName: config.repoName,
+    repoPath: config.managedRepoPath,
+    token,
+  });
 
   await prepareAlertBranch({
     baseBranch: config.baseBranch,
@@ -69,14 +89,25 @@ export async function createRequest(
     repoPath: config.managedRepoPath,
   });
 
-  const remote = await createGithubPullRequest({
-    baseBranch: config.baseBranch,
-    body: buildRequestBody(item),
-    branchName,
-    repoName: config.repoName,
-    title,
-    token: config.token,
-  });
+  const remote =
+    config.provider === "gitlab"
+      ? await createGitlabMergeRequest({
+          baseBranch: config.baseBranch,
+          baseUrl: config.instanceUrl,
+          body: buildRequestBody(item),
+          branchName,
+          repoName: config.repoName,
+          title,
+          token,
+        })
+      : await createGithubPullRequest({
+          baseBranch: config.baseBranch,
+          body: buildRequestBody(item),
+          branchName,
+          repoName: config.repoName,
+          title,
+          token,
+        });
 
   return {
     baseBranch: config.baseBranch,
@@ -97,12 +128,22 @@ export async function mergeRequest(
   request: CodeRequest,
   config: StoredProjectRepoConfig
 ): Promise<CodeRequest> {
-  ensureGithub(config);
-  await mergeGithubPullRequest({
-    remoteId: request.remoteId,
-    repoName: request.repoName,
-    token: config.token,
-  });
+  const token = await resolveProviderToken(config);
+
+  if (config.provider === "gitlab") {
+    await mergeGitlabMergeRequest({
+      baseUrl: config.instanceUrl,
+      remoteId: request.remoteId,
+      repoName: request.repoName,
+      token,
+    });
+  } else {
+    await mergeGithubPullRequest({
+      remoteId: request.remoteId,
+      repoName: request.repoName,
+      token,
+    });
+  }
 
   return {
     ...request,
@@ -116,12 +157,22 @@ export async function closeRequest(
   request: CodeRequest,
   config: StoredProjectRepoConfig
 ): Promise<CodeRequest> {
-  ensureGithub(config);
-  await closeGithubPullRequest({
-    remoteId: request.remoteId,
-    repoName: request.repoName,
-    token: config.token,
-  });
+  const token = await resolveProviderToken(config);
+
+  if (config.provider === "gitlab") {
+    await closeGitlabMergeRequest({
+      baseUrl: config.instanceUrl,
+      remoteId: request.remoteId,
+      repoName: request.repoName,
+      token,
+    });
+  } else {
+    await closeGithubPullRequest({
+      remoteId: request.remoteId,
+      repoName: request.repoName,
+      token,
+    });
+  }
 
   return {
     ...request,

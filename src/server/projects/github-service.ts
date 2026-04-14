@@ -95,6 +95,7 @@ export async function validateGithubProject(
 
   return {
     baseBranch,
+    instanceUrl: "https://github.com",
     provider: "github",
     repoName: repo.full_name,
   };

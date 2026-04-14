@@ -2,13 +2,16 @@ import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { Item } from "@shared/types/alert";
+import type { RequestProvider } from "@shared/types/project";
 
 interface GitRunOptions {
   cwd?: string;
 }
 
-interface GithubCloneOptions {
+interface CloneRepoOptions {
   baseBranch: string;
+  instanceUrl: string;
+  provider: RequestProvider;
   repoName: string;
   repoPath: string;
   token: string;
@@ -22,6 +25,8 @@ interface PrepareBranchOptions {
 }
 
 interface UpdateRemoteOptions {
+  instanceUrl: string;
+  provider: RequestProvider;
   repoName: string;
   repoPath: string;
   token: string;
@@ -49,11 +54,59 @@ function runGit(args: string[], options: GitRunOptions = {}) {
   });
 }
 
-// 远端链
-function buildGithubRemoteUrl(repoName: string, token: string) {
-  const auth = encodeURIComponent(token);
+// 整理地址
+function normalizeRemoteUrl(instanceUrl: string) {
+  return instanceUrl.trim().replace(/\/+$/g, "");
+}
 
-  return `https://x-access-token:${auth}@github.com/${repoName}.git`;
+// GitHub链
+function buildGithubRemoteUrl(
+  repoName: string,
+  token: string,
+  instanceUrl: string
+) {
+  const url = new URL(`${repoName}.git`, `${normalizeRemoteUrl(instanceUrl)}/`);
+
+  url.username = "x-access-token";
+  url.password = token;
+
+  return url.toString();
+}
+
+// GitLab链
+function buildGitlabRemoteUrl(
+  repoName: string,
+  token: string,
+  instanceUrl: string
+) {
+  const url = new URL(`${repoName}.git`, `${normalizeRemoteUrl(instanceUrl)}/`);
+
+  url.username = "oauth2";
+  url.password = token;
+
+  return url.toString();
+}
+
+// 远端链
+function buildRemoteUrl(options: {
+  instanceUrl: string;
+  provider: RequestProvider;
+  repoName: string;
+  token: string;
+}) {
+  if (options.provider === "gitlab") {
+    return buildGitlabRemoteUrl(
+      options.repoName,
+      options.token,
+      options.instanceUrl
+    );
+  }
+
+  return buildGithubRemoteUrl(
+    options.repoName,
+    options.token,
+    options.instanceUrl
+  );
 }
 
 // 提交文案
@@ -67,7 +120,7 @@ export async function ensureGit() {
 }
 
 // 拉取仓库
-export async function cloneGithubRepo(options: GithubCloneOptions) {
+export async function cloneManagedRepo(options: CloneRepoOptions) {
   await ensureGit();
   await mkdir(path.dirname(options.repoPath), {
     recursive: true,
@@ -76,25 +129,17 @@ export async function cloneGithubRepo(options: GithubCloneOptions) {
     "clone",
     "--branch",
     options.baseBranch,
-    buildGithubRemoteUrl(options.repoName, options.token),
+    buildRemoteUrl(options),
     options.repoPath,
   ]);
 }
 
 // 更新远端
-export async function updateGithubRemote(options: UpdateRemoteOptions) {
+export async function updateManagedRemote(options: UpdateRemoteOptions) {
   await ensureGit();
-  await runGit(
-    [
-      "remote",
-      "set-url",
-      "origin",
-      buildGithubRemoteUrl(options.repoName, options.token),
-    ],
-    {
-      cwd: options.repoPath,
-    }
-  );
+  await runGit(["remote", "set-url", "origin", buildRemoteUrl(options)], {
+    cwd: options.repoPath,
+  });
 }
 
 // 准备分支

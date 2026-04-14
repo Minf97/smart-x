@@ -30,10 +30,15 @@ import {
 } from "@/server/db/schema";
 import { getGithubAccessToken } from "@/server/github/auth-service";
 import {
-  cloneGithubRepo,
-  updateGithubRemote,
+  getGitlabAccessToken,
+  getGitlabInstanceUrl,
+} from "@/server/gitlab/auth-service";
+import {
+  cloneManagedRepo,
+  updateManagedRemote,
 } from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
+import { validateGitlabProject } from "@/server/projects/gitlab-service";
 import { createBackendProject } from "@/server/projects/remote-project-service";
 import type { DashboardData } from "@/types/dashboard";
 import {
@@ -88,6 +93,7 @@ const defaultProjects = [
     name: "Client App",
     repoConfig: {
       baseBranch: "main",
+      instanceUrl: "https://github.com",
       managedRepoPath: "",
       provider: "github",
       repoName: "demo/client-app",
@@ -106,6 +112,7 @@ const defaultProjects = [
     name: "Server API",
     repoConfig: {
       baseBranch: "develop",
+      instanceUrl: "https://gitlab.local",
       managedRepoPath: "",
       provider: "gitlab",
       repoName: "demo/server-api",
@@ -481,11 +488,29 @@ function resolveGithubToken(token: string) {
   return token || getGithubAccessToken();
 }
 
+// 解析凭证
+async function resolveProjectConnection(
+  input: Pick<ProjectInput["repoConfig"], "provider" | "token">
+) {
+  if (input.provider === "gitlab") {
+    return {
+      instanceUrl: getGitlabInstanceUrl(),
+      token: await getGitlabAccessToken(),
+    };
+  }
+
+  return {
+    instanceUrl: "https://github.com",
+    token: resolveGithubToken(input.token),
+  };
+}
+
 // 外部配置
 function toProjectConfig(config: StoredProjectRepoConfig) {
   return {
     baseBranch: config.baseBranch,
     hasToken: config.token.length > 0,
+    instanceUrl: config.instanceUrl,
     managedRepoPath: config.managedRepoPath,
     provider: config.provider,
     repoName: config.repoName,
@@ -699,17 +724,21 @@ export async function validateProjectConnection(input: ProjectInput) {
   await delay(180);
 
   const projectInput = toProjectInput(input);
+  const connection = await resolveProjectConnection(projectInput.repoConfig);
 
-  if (projectInput.repoConfig.provider !== "github") {
-    throw new Error("GitLab integration is not ready.");
+  if (projectInput.repoConfig.provider === "gitlab") {
+    return validateGitlabProject(
+      projectInput.repoConfig.repoName,
+      projectInput.repoConfig.baseBranch,
+      connection.token,
+      connection.instanceUrl
+    );
   }
-
-  const token = resolveGithubToken(projectInput.repoConfig.token);
 
   return validateGithubProject(
     projectInput.repoConfig.repoName,
     projectInput.repoConfig.baseBranch,
-    token
+    connection.token
   );
 }
 
@@ -790,7 +819,7 @@ export async function createProject(input: ProjectInput) {
   const db = getDb();
   const rows = listProjectRows();
   const projectInput = toProjectInput(input);
-  const token = resolveGithubToken(projectInput.repoConfig.token);
+  const connection = await resolveProjectConnection(projectInput.repoConfig);
   const validated = await validateProjectConnection(projectInput);
   const remoteProject = await createBackendProject(projectInput.name);
   const storedProject = {
@@ -800,10 +829,11 @@ export async function createProject(input: ProjectInput) {
     name: remoteProject.name,
     repoConfig: {
       baseBranch: validated.baseBranch,
+      instanceUrl: validated.instanceUrl,
       managedRepoPath: buildManagedRepoPath(remoteProject.id),
       provider: validated.provider,
       repoName: validated.repoName,
-      token,
+      token: connection.token,
     },
     requestMap: {},
     updatedAt: remoteProject.updatedAt,
@@ -812,8 +842,10 @@ export async function createProject(input: ProjectInput) {
     webhookUrl: remoteProject.webhookUrl,
   } satisfies StoredProject;
 
-  await cloneGithubRepo({
+  await cloneManagedRepo({
     baseBranch: storedProject.repoConfig.baseBranch,
+    instanceUrl: storedProject.repoConfig.instanceUrl,
+    provider: storedProject.repoConfig.provider,
     repoName: storedProject.repoConfig.repoName,
     repoPath: storedProject.repoConfig.managedRepoPath,
     token: storedProject.repoConfig.token,
@@ -846,37 +878,43 @@ export async function updateProject(id: string, input: ProjectInput) {
   const currentProject = toStoredProject(row);
   const projectInput = toProjectInput(input);
   const nextToken =
-    projectInput.repoConfig.token ||
-    currentProject.repoConfig.token ||
-    getGithubAccessToken();
+    projectInput.repoConfig.token || currentProject.repoConfig.token;
 
   if (projectInput.repoConfig.provider !== currentProject.repoConfig.provider) {
     throw new Error("Provider change is not supported yet.");
-  }
-
-  if (currentProject.repoConfig.provider !== "github") {
-    throw new Error("GitLab integration is not ready.");
   }
 
   if (projectInput.repoConfig.repoName !== currentProject.repoConfig.repoName) {
     throw new Error("Repository change is not supported yet.");
   }
 
-  if (!nextToken) {
-    throw new Error("Token is required.");
+  const connection = await resolveProjectConnection({
+    provider: currentProject.repoConfig.provider,
+    token: nextToken,
+  });
+
+  if (currentProject.repoConfig.provider === "gitlab") {
+    await validateGitlabProject(
+      projectInput.repoConfig.repoName,
+      projectInput.repoConfig.baseBranch,
+      connection.token,
+      connection.instanceUrl
+    );
+  } else {
+    await validateGithubProject(
+      projectInput.repoConfig.repoName,
+      projectInput.repoConfig.baseBranch,
+      connection.token
+    );
   }
 
-  await validateGithubProject(
-    projectInput.repoConfig.repoName,
-    projectInput.repoConfig.baseBranch,
-    nextToken
-  );
-
-  if (projectInput.repoConfig.token) {
-    await updateGithubRemote({
+  if (currentProject.repoConfig.managedRepoPath) {
+    await updateManagedRemote({
+      instanceUrl: connection.instanceUrl,
+      provider: currentProject.repoConfig.provider,
       repoName: currentProject.repoConfig.repoName,
       repoPath: currentProject.repoConfig.managedRepoPath,
-      token: projectInput.repoConfig.token,
+      token: connection.token,
     });
   }
 
@@ -886,7 +924,8 @@ export async function updateProject(id: string, input: ProjectInput) {
     repoConfigJson: JSON.stringify({
       ...currentProject.repoConfig,
       baseBranch: projectInput.repoConfig.baseBranch,
-      token: nextToken,
+      instanceUrl: connection.instanceUrl,
+      token: connection.token,
     } satisfies StoredProjectRepoConfig),
     updatedAt: new Date().toISOString(),
   });

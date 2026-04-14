@@ -3,13 +3,19 @@ import { getDefaultProjectAiConfig } from "@shared/types/project";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
-import { alertsTable, githubAuthTable, projectsTable } from "./schema";
+import {
+  alertsTable,
+  githubAuthTable,
+  gitlabAuthTable,
+  projectsTable,
+} from "./schema";
 
 function createDb(connection: Database.Database) {
   return drizzle(connection, {
     schema: {
       alertsTable,
       githubAuthTable,
+      gitlabAuthTable,
       projectsTable,
     },
   });
@@ -80,6 +86,18 @@ function getSchemaSql() {
       name TEXT NOT NULL,
       avatar_url TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS gitlab_auth (
+      id TEXT PRIMARY KEY NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      login TEXT NOT NULL,
+      name TEXT NOT NULL,
+      avatar_url TEXT NOT NULL
+    );
   `;
 }
 
@@ -102,6 +120,23 @@ function ensureProjectColumns(connection: Database.Database) {
   `);
 }
 
+// 补GitLab列
+function ensureGitlabAuthColumns(connection: Database.Database) {
+  const rows = connection
+    .prepare("PRAGMA table_info(gitlab_auth)")
+    .all() as TableInfoRow[];
+  const hasClientId = rows.some((row) => row.name === "client_id");
+
+  if (hasClientId) {
+    return;
+  }
+
+  connection.exec(`
+    ALTER TABLE gitlab_auth
+    ADD COLUMN client_id TEXT NOT NULL DEFAULT ''
+  `);
+}
+
 // 初始化库
 export function initLocalDatabase() {
   if (db) {
@@ -112,6 +147,7 @@ export function initLocalDatabase() {
   connection.pragma("journal_mode = WAL");
   connection.exec(getSchemaSql());
   ensureProjectColumns(connection);
+  ensureGitlabAuthColumns(connection);
   db = createDb(connection);
 
   return db;
