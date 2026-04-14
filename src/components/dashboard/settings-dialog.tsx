@@ -119,7 +119,7 @@ export default function SettingsDialog({
     }));
   }
 
-  // 改地址
+  // 更新基础址
   function handleBaseUrlChange(value: string) {
     setInput((current) => ({
       ...current,
@@ -130,7 +130,7 @@ export default function SettingsDialog({
     }));
   }
 
-  // 改模型
+  // 更新模型名
   function handleModelChange(value: string) {
     setInput((current) => ({
       ...current,
@@ -141,7 +141,7 @@ export default function SettingsDialog({
     }));
   }
 
-  // 改密钥
+  // 更新接口密钥
   function handleApiKeyChange(value: string) {
     setInput((current) => ({
       ...current,
@@ -152,7 +152,7 @@ export default function SettingsDialog({
     }));
   }
 
-  // 复制链路
+  // 复制 webhook
   async function handleCopyWebhook() {
     await copyText(project.webhookUrl);
     toast.success(t("dashboard.copyWebhookSuccess"));

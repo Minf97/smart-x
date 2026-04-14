@@ -33,7 +33,7 @@ import {
   updateGithubRemote,
 } from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
-import { createRemoteProject } from "@/server/projects/remote-service";
+import { createBackendProject } from "@/server/projects/remote-project-service";
 import type { DashboardData } from "@/types/dashboard";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
@@ -725,7 +725,7 @@ export async function createProject(input: ProjectInput) {
   const projectInput = toProjectInput(input);
   const token = resolveGithubToken(projectInput.repoConfig.token);
   const validated = await validateProjectConnection(projectInput);
-  const remoteProject = await createRemoteProject(projectInput.name);
+  const remoteProject = await createBackendProject(projectInput.name);
   const storedProject = {
     aiConfig: projectInput.aiConfig,
     createdAt: remoteProject.createdAt,

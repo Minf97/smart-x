@@ -196,7 +196,7 @@ export default function CreateProjectDialog({
     setInput(applyRepoInput(repo));
   }, [githubReposQuery.data, selectedRepo]);
 
-  // 重置态
+  // 重置弹窗态
   function resetState() {
     setCreatedProject(null);
     setDeviceFlow(null);
@@ -251,7 +251,7 @@ export default function CreateProjectDialog({
     setInput(applyRepoInput(repo));
   }
 
-  // 复制链路
+  // 复制 webhook
   async function handleCopyWebhook() {
     if (!createdProject) {
       return;
@@ -261,7 +261,7 @@ export default function CreateProjectDialog({
     toast.success(t("dashboard.copyWebhookSuccess"));
   }
 
-  // 完成关闭
+  // 关闭成功态
   function handleDone() {
     resetState();
     onOpenChange(false);

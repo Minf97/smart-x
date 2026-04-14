@@ -6,7 +6,7 @@ interface ErrorPayload {
   message?: string;
 }
 
-// 取地址
+// 读取后端地址
 function getBackendBaseUrl() {
   const baseUrl = process.env.ALERTS_BACKEND_BASE_URL?.trim();
 
@@ -17,7 +17,7 @@ function getBackendBaseUrl() {
   return baseUrl.replace(TRAILING_SLASH_RE, "");
 }
 
-// 读错误
+// 解析接口错误
 async function readError(response: Response) {
   const data = (await response.json().catch(() => null)) as ErrorPayload | null;
 
@@ -28,8 +28,8 @@ async function readError(response: Response) {
   return "Remote request failed.";
 }
 
-// 建远端
-export async function createRemoteProject(name: string) {
+// 创建后端项目
+export async function createBackendProject(name: string) {
   const response = await fetch(`${getBackendBaseUrl()}/projects`, {
     body: JSON.stringify({ name }),
     headers: {
