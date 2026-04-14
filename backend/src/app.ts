@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import type { AlertSyncAckInput } from "../../shared/types/alert";
 import { normalizePayload } from "./alert-normalizer";
 import { BackendDatabase } from "./db";
 import { hasDatabaseUrl } from "./db/client";
@@ -12,6 +13,11 @@ const TRAILING_SLASH_RE = /\/$/;
 // 建项目
 const createProjectSchema = z.object({
   name: z.string().trim().min(1),
+});
+
+// 回执入参
+const syncAckSchema = z.object({
+  alertIds: z.array(z.string().trim().min(1)).min(1),
 });
 
 // 错误包
@@ -113,6 +119,27 @@ app.get("/projects/:projectId/alerts", async (context) => {
   return context.json({
     alerts,
   });
+});
+
+// 同步回执
+app.post("/projects/:projectId/alerts/sync-ack", async (context) => {
+  const projectId = context.req.param("projectId");
+  const body = await context.req.json().catch(() => null);
+  const result = syncAckSchema.safeParse(body);
+
+  if (!result.success) {
+    return context.json(
+      {
+        message: "Invalid sync ack payload.",
+      },
+      400
+    );
+  }
+
+  const input: AlertSyncAckInput = result.data;
+  await db.markAlertsSynced(projectId, input.alertIds);
+
+  return context.body(null, 204);
 });
 
 export default app;

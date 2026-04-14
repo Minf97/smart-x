@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { IngestPayload, Item } from "../../shared/types/alert";
 import type { ProjectRecord } from "../../shared/types/project";
 import { ensureSchema, getDb } from "./db/client";
@@ -84,17 +84,47 @@ export class BackendDatabase {
     return row ? toProjectRecord(row) : null;
   }
 
-  // 查报警
+  // 查报警,目前只返回未同步的报警
   async listAlerts(projectId: string): Promise<Item[]> {
     await this.waitReady();
     const db = getDb();
     const rows = await db
       .select()
       .from(alertsTable)
-      .where(eq(alertsTable.projectId, projectId))
+      .where(
+        and(
+          eq(alertsTable.projectId, projectId),
+          eq(alertsTable.isSyncedLocal, false)
+        )
+      )
       .orderBy(alertsTable.updatedAt);
 
     return rows.map(toAlertItem).reverse();
+  }
+
+  // 标记已同步
+  async markAlertsSynced(projectId: string, alertIds: string[]): Promise<void> {
+    await this.waitReady();
+
+    if (alertIds.length === 0) {
+      throw new Error("Alert ids are required.");
+    }
+
+    const db = getDb();
+    const syncedAt = new Date().toISOString();
+    await db
+      .update(alertsTable)
+      .set({
+        isSyncedLocal: true,
+        syncedAt,
+        updatedAt: syncedAt,
+      })
+      .where(
+        and(
+          eq(alertsTable.projectId, projectId),
+          inArray(alertsTable.id, alertIds)
+        )
+      );
   }
 
   // 写报警

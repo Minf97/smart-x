@@ -160,3 +160,21 @@ export interface IngestPayload {
   stack: string | null; // 堆栈
   title: string; // 标题
 }
+
+// 列表返回
+export interface AlertListResponse {
+  alerts: Item[]; // 列表
+}
+
+// 回执入参
+export interface AlertSyncAckInput {
+  alertIds: string[]; // 主键
+}
+
+// 同步结果
+export interface LocalAlertSyncResult {
+  acknowledgedCount: number; // 回执数
+  insertedCount: number; // 新增数
+  projectCount: number; // 项目数
+  updatedCount: number; // 更新数
+}

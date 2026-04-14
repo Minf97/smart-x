@@ -1,4 +1,8 @@
-import type { Item, ItemStatus } from "@shared/types/alert";
+import type {
+  Item,
+  ItemStatus,
+  LocalAlertSyncResult,
+} from "@shared/types/alert";
 import type { Project, ProjectInput } from "@shared/types/project";
 import { ipc } from "@/ipc/manager";
 import type { DashboardData } from "@/types/dashboard";
@@ -66,6 +70,16 @@ export async function listAlerts() {
   const response = await fetch(url);
 
   return readJson<DashboardData>(response);
+}
+
+// 同步报警
+export async function syncAlerts() {
+  const url = await buildApiUrl("/alerts/sync");
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<LocalAlertSyncResult>(response);
 }
 
 // 更新状态

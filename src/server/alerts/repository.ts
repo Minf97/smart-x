@@ -4,6 +4,7 @@ import type {
   Item,
   ItemPriority,
   ItemStatus,
+  LocalAlertSyncResult,
 } from "@shared/types/alert";
 import { ITEM_STATUS_VALUES } from "@shared/types/alert";
 import {
@@ -35,6 +36,10 @@ import {
 import { validateGithubProject } from "@/server/projects/github-service";
 import { createBackendProject } from "@/server/projects/remote-project-service";
 import type { DashboardData } from "@/types/dashboard";
+import {
+  ackBackendAlerts,
+  listUnsyncedBackendAlerts,
+} from "./remote-alert-service";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
 interface StoredProject extends Omit<Project, "repoConfig"> {
@@ -588,7 +593,7 @@ function getProjectRow(id: string) {
   return row;
 }
 
-// 查项目列
+// 查本地的所有 project
 function listProjectRows() {
   const db = getDb();
 
@@ -597,6 +602,13 @@ function listProjectRows() {
     .from(projectsTable)
     .orderBy(asc(projectsTable.position))
     .all();
+}
+
+// 查报警列
+function listAlertRows() {
+  const db = getDb();
+
+  return db.select().from(alertsTable).orderBy(asc(alertsTable.position)).all();
 }
 
 // 写单条
@@ -612,6 +624,26 @@ function updateAlertRow(
     ...row,
     ...patch,
   });
+}
+
+// 写远端报警
+function writeRemoteAlert(item: Item, position: number) {
+  const db = getDb();
+  const row = db
+    .select()
+    .from(alertsTable)
+    .where(eq(alertsTable.id, item.id))
+    .get();
+  const nextRow = toAlertRow(item, row?.position ?? position);
+
+  if (!row) {
+    db.insert(alertsTable).values(nextRow).run();
+    return "inserted";
+  }
+
+  db.update(alertsTable).set(nextRow).where(eq(alertsTable.id, item.id)).run();
+
+  return "updated";
 }
 
 // 写项目
@@ -686,21 +718,56 @@ export async function getDashboardData(): Promise<DashboardData> {
   ensureSeeded();
   await delay(120);
 
-  const db = getDb();
-  const alertRows = db
-    .select()
-    .from(alertsTable)
-    .orderBy(asc(alertsTable.position))
-    .all();
-  const projectRows = db
-    .select()
-    .from(projectsTable)
-    .orderBy(asc(projectsTable.position))
-    .all();
+  const alertRows = listAlertRows();
+  const projectRows = listProjectRows();
 
   return {
     alerts: alertRows.map(toItem),
     projects: projectRows.map(toProject),
+  };
+}
+
+// 同步远端报警
+export async function syncRemoteAlerts(): Promise<LocalAlertSyncResult> {
+  ensureSeeded();
+
+  const projects = listProjectRows()
+    .map(toStoredProject)
+    // TODO： 这个webhookEnabled 暂时留空，没想好有什么用
+    .filter((project) => project.webhookEnabled);
+  let acknowledgedCount = 0;
+  let insertedCount = 0;
+  let updatedCount = 0;
+  let nextPosition = listAlertRows().length;
+
+  for (const project of projects) {
+    const data = await listUnsyncedBackendAlerts(project.id);
+    const alertIds = data.alerts.map((item) => item.id);
+
+    if (alertIds.length === 0) {
+      continue;
+    }
+
+    for (const item of data.alerts) {
+      const result = writeRemoteAlert(item, nextPosition);
+
+      if (result === "inserted") {
+        insertedCount += 1;
+        nextPosition += 1;
+      } else {
+        updatedCount += 1;
+      }
+    }
+
+    await ackBackendAlerts(project.id, alertIds);
+    acknowledgedCount += alertIds.length;
+  }
+
+  return {
+    acknowledgedCount,
+    insertedCount,
+    projectCount: projects.length,
+    updatedCount,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   createAlertRequest,
   getDashboardData,
   mergeAlertRequest,
+  syncRemoteAlerts,
   updateAlertStatus,
   updateStatusSchema,
 } from "./repository";
@@ -20,6 +21,21 @@ alertsRouter.get("/alerts", async (context) => {
   const data = await getDashboardData();
 
   return context.json(data);
+});
+
+alertsRouter.post("/alerts/sync", async (context) => {
+  try {
+    const result = await syncRemoteAlerts();
+
+    return context.json(result);
+  } catch (error) {
+    return context.json(
+      {
+        message: toErrorMessage(error, "Failed to sync alerts."),
+      },
+      400
+    );
+  }
 });
 
 alertsRouter.patch("/alerts/:id/status", async (context) => {

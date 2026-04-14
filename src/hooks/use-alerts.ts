@@ -1,14 +1,16 @@
 import type { Item } from "@shared/types/alert";
 import type { CodeRequest } from "@shared/types/project";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { listAlerts } from "@/api/alerts";
+import { listAlerts, syncAlerts } from "@/api/alerts";
 import { getCurrentProject } from "@/hooks/use-projects";
 import { useAlertStore } from "@/store/alert-store";
 import { useProjectStore } from "@/store/project-store";
 
 // 查询键
 export const ALERTS_QUERY_KEY = ["alerts"] as const;
+const ALERTS_SYNC_QUERY_KEY = ["alerts-sync"] as const;
+const ALERTS_SYNC_INTERVAL = 30_000;
 
 // 匹配词
 function getSearchText(item: Item) {
@@ -30,9 +32,38 @@ export function useAlertsQuery() {
   });
 }
 
+// 同步远端报警
+function useAlertsSyncQuery() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryFn: syncAlerts,
+    queryKey: ALERTS_SYNC_QUERY_KEY,
+    refetchInterval: ALERTS_SYNC_INTERVAL,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+  useEffect(() => {
+    const count =
+      (query.data?.insertedCount ?? 0) + (query.data?.updatedCount ?? 0);
+
+    if (count === 0) {
+      return;
+    }
+
+    queryClient.invalidateQueries({
+      queryKey: ALERTS_QUERY_KEY,
+    });
+  }, [query.data, queryClient]);
+
+  return query;
+}
+
 // 首屏状态
 export function useDashboardBootstrap() {
+  // 拉取未同步的报警列表，然后sync 状态
   const query = useAlertsQuery();
+  useAlertsSyncQuery();
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const hydrateProjects = useProjectStore((state) => state.hydrateProjects);
   const projects = useProjectStore((state) => state.projects);
