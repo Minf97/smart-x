@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type {
   Detail,
@@ -9,7 +8,9 @@ import type {
 import { ITEM_STATUS_VALUES } from "@shared/types/alert";
 import {
   type CodeRequest,
+  getDefaultProjectAiConfig,
   type Project,
+  type ProjectAiConfig,
   type ProjectInput,
   REQUEST_PROVIDER_VALUES,
   type StoredProjectRepoConfig,
@@ -32,6 +33,7 @@ import {
   updateGithubRemote,
 } from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
+import { createRemoteProject } from "@/server/projects/remote-service";
 import type { DashboardData } from "@/types/dashboard";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
@@ -46,6 +48,11 @@ export const updateStatusSchema = z.object({
 
 // 项目校验
 const projectSchema = z.object({
+  aiConfig: z.object({
+    apiKey: z.string().trim(),
+    baseUrl: z.string().trim(),
+    model: z.string().trim(),
+  }),
   name: z.string().trim().min(1),
   repoConfig: z.object({
     baseBranch: z.string().trim().min(1),
@@ -70,6 +77,7 @@ const MOCK_UPDATED_AT = "2026-04-13T08:30:00.000Z";
 // 项目种子
 const defaultProjects = [
   {
+    aiConfig: getDefaultProjectAiConfig(),
     createdAt: MOCK_CREATED_AT,
     id: "client",
     name: "Client App",
@@ -87,6 +95,7 @@ const defaultProjects = [
     webhookUrl: "https://mock.local/ingest/client",
   },
   {
+    aiConfig: getDefaultProjectAiConfig(),
     createdAt: MOCK_CREATED_AT,
     id: "server",
     name: "Server API",
@@ -416,6 +425,7 @@ function toAlertRow(item: Item, position: number): NewAlertRow {
 // 转项目行
 function toProjectRow(project: StoredProject, position: number): NewProjectRow {
   return {
+    aiConfigJson: stringifyJson(project.aiConfig),
     createdAt: project.createdAt,
     id: project.id,
     name: project.name,
@@ -432,6 +442,11 @@ function toProjectRow(project: StoredProject, position: number): NewProjectRow {
 // 转项目入参
 function toProjectInput(input: ProjectInput) {
   return {
+    aiConfig: {
+      apiKey: input.aiConfig.apiKey.trim(),
+      baseUrl: input.aiConfig.baseUrl.trim(),
+      model: input.aiConfig.model.trim(),
+    },
     name: input.name.trim(),
     repoConfig: {
       baseBranch: input.repoConfig.baseBranch.trim(),
@@ -440,6 +455,15 @@ function toProjectInput(input: ProjectInput) {
       token: input.repoConfig.token.trim(),
     },
   } satisfies ProjectInput;
+}
+
+// AI配置
+function toAiConfig(config: ProjectAiConfig) {
+  return {
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    model: config.model,
+  } satisfies ProjectAiConfig;
 }
 
 // 托管目录
@@ -507,6 +531,7 @@ function toProject(row: ProjectRow): Project {
   const project = toStoredProject(row);
 
   return {
+    aiConfig: toAiConfig(project.aiConfig),
     createdAt: project.createdAt,
     id: project.id,
     name: project.name,
@@ -522,6 +547,7 @@ function toProject(row: ProjectRow): Project {
 // 转存储项目
 function toStoredProject(row: ProjectRow): StoredProject {
   return {
+    aiConfig: parseJson<ProjectAiConfig>(row.aiConfigJson),
     createdAt: row.createdAt,
     id: row.id,
     name: row.name,
@@ -594,6 +620,7 @@ function updateProjectRow(
   patch: Partial<
     Pick<
       ProjectRow,
+      | "aiConfigJson"
       | "name"
       | "repoConfigJson"
       | "requestMapJson"
@@ -698,24 +725,24 @@ export async function createProject(input: ProjectInput) {
   const projectInput = toProjectInput(input);
   const token = resolveGithubToken(projectInput.repoConfig.token);
   const validated = await validateProjectConnection(projectInput);
-  const projectId = randomUUID();
-  const now = new Date().toISOString();
+  const remoteProject = await createRemoteProject(projectInput.name);
   const storedProject = {
-    createdAt: now,
-    id: projectId,
-    name: projectInput.name,
+    aiConfig: projectInput.aiConfig,
+    createdAt: remoteProject.createdAt,
+    id: remoteProject.id,
+    name: remoteProject.name,
     repoConfig: {
       baseBranch: validated.baseBranch,
-      managedRepoPath: buildManagedRepoPath(projectId),
+      managedRepoPath: buildManagedRepoPath(remoteProject.id),
       provider: validated.provider,
       repoName: validated.repoName,
       token,
     },
     requestMap: {},
-    updatedAt: now,
-    webhookEnabled: false,
-    webhookId: `local-${projectId}`,
-    webhookUrl: "",
+    updatedAt: remoteProject.updatedAt,
+    webhookEnabled: remoteProject.webhookEnabled,
+    webhookId: remoteProject.webhookId,
+    webhookUrl: remoteProject.webhookUrl,
   } satisfies StoredProject;
 
   await cloneGithubRepo({
@@ -730,6 +757,7 @@ export async function createProject(input: ProjectInput) {
     .run();
 
   return {
+    aiConfig: storedProject.aiConfig,
     createdAt: storedProject.createdAt,
     id: storedProject.id,
     name: storedProject.name,
@@ -786,6 +814,7 @@ export async function updateProject(id: string, input: ProjectInput) {
   }
 
   return updateProjectRow(row, {
+    aiConfigJson: JSON.stringify(projectInput.aiConfig),
     name: projectInput.name,
     repoConfigJson: JSON.stringify({
       ...currentProject.repoConfig,

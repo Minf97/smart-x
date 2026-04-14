@@ -1,5 +1,6 @@
-import { openExternalLink } from "./handlers";
+import { copyText, openExternalLink } from "./handlers";
 
 export const shell = {
+  copyText,
   openExternalLink,
 };

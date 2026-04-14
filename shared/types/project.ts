@@ -33,6 +33,22 @@ export interface ProjectWebhookConfig {
   webhookUrl: string; // 地址
 }
 
+// AI配置
+export interface ProjectAiConfig {
+  apiKey: string; // 密钥
+  baseUrl: string; // 地址
+  model: string; // 模型
+}
+
+// 默认AI
+export function getDefaultProjectAiConfig(): ProjectAiConfig {
+  return {
+    apiKey: "",
+    baseUrl: "",
+    model: "",
+  };
+}
+
 // PR信息
 // 实现:
 // A. 先读取项目设置里的仓库配置
@@ -78,6 +94,7 @@ export interface StoredProjectRepoConfig {
 
 // 项目入参
 export interface ProjectInput {
+  aiConfig: ProjectAiConfig; // AI
   name: string; // 名称
   repoConfig: {
     baseBranch: string; // 基线
@@ -104,6 +121,7 @@ export interface ProjectRecord extends ProjectWebhookConfig {
 
 // 项目类型
 export interface Project extends ProjectRecord {
+  aiConfig: ProjectAiConfig; // AI
   repoConfig: ProjectRepoConfig; // 配置
   requestMap: Record<string, CodeRequest>; // 请求表
 }

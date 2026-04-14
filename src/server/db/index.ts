@@ -1,4 +1,5 @@
 import path from "node:path";
+import { getDefaultProjectAiConfig } from "@shared/types/project";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
@@ -15,6 +16,9 @@ function createDb(connection: Database.Database) {
 }
 
 type LocalDb = ReturnType<typeof createDb>;
+interface TableInfoRow {
+  name: string;
+}
 
 let connection: Database.Database | null = null;
 let db: LocalDb | null = null;
@@ -26,11 +30,14 @@ function getDbPath() {
 
 // 建表句
 function getSchemaSql() {
+  const aiConfig = JSON.stringify(getDefaultProjectAiConfig());
+
   return `
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       position INTEGER NOT NULL,
+      ai_config_json TEXT NOT NULL DEFAULT '${aiConfig}',
       repo_config_json TEXT NOT NULL,
       request_map_json TEXT NOT NULL,
       webhook_id TEXT NOT NULL,
@@ -76,6 +83,25 @@ function getSchemaSql() {
   `;
 }
 
+// 补字段
+function ensureProjectColumns(connection: Database.Database) {
+  const rows = connection
+    .prepare("PRAGMA table_info(projects)")
+    .all() as TableInfoRow[];
+  const hasAiConfig = rows.some((row) => row.name === "ai_config_json");
+
+  if (hasAiConfig) {
+    return;
+  }
+
+  const aiConfig = JSON.stringify(getDefaultProjectAiConfig());
+
+  connection.exec(`
+    ALTER TABLE projects
+    ADD COLUMN ai_config_json TEXT NOT NULL DEFAULT '${aiConfig}'
+  `);
+}
+
 // 初始化库
 export function initLocalDatabase() {
   if (db) {
@@ -85,6 +111,7 @@ export function initLocalDatabase() {
   connection = new Database(getDbPath());
   connection.pragma("journal_mode = WAL");
   connection.exec(getSchemaSql());
+  ensureProjectColumns(connection);
   db = createDb(connection);
 
   return db;

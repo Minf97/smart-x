@@ -1,9 +1,13 @@
-import type { Project, ProjectInput } from "@shared/types/project";
+import {
+  getDefaultProjectAiConfig,
+  type Project,
+  type ProjectInput,
+} from "@shared/types/project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { openExternalLink } from "@/actions/shell";
+import { copyText, openExternalLink } from "@/actions/shell";
 import {
   createProject,
   getGithubAuth,
@@ -37,6 +41,7 @@ interface CreateProjectDialogProps {
 // 默认值
 function getDefaultInput(): ProjectInput {
   return {
+    aiConfig: getDefaultProjectAiConfig(),
     name: "",
     repoConfig: {
       baseBranch: "",
@@ -62,6 +67,7 @@ function appendProjectCache(data: DashboardData | undefined, project: Project) {
 // 选仓库
 function applyRepoInput(repo: GithubRepoItem): ProjectInput {
   return {
+    aiConfig: getDefaultProjectAiConfig(),
     name: repo.name,
     repoConfig: {
       baseBranch: repo.defaultBranch,
@@ -80,6 +86,7 @@ export default function CreateProjectDialog({
   const queryClient = useQueryClient();
   const addProject = useProjectStore((state) => state.addProject);
   const [input, setInput] = useState<ProjectInput>(getDefaultInput);
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [deviceFlow, setDeviceFlow] = useState<GithubDeviceFlow | null>(null);
   const [selectedRepo, setSelectedRepo] = useState("");
   const githubAuthQuery = useQuery({
@@ -139,11 +146,11 @@ export default function CreateProjectDialog({
         appendProjectCache(data, project)
       );
       addProject(project);
+      setCreatedProject(project);
       toast.success(t("dashboard.createProjectSuccess"));
       setDeviceFlow(null);
       setInput(getDefaultInput());
       setSelectedRepo("");
-      onOpenChange(false);
     },
   });
   const selectedRepoItem = useMemo(() => {
@@ -188,6 +195,14 @@ export default function CreateProjectDialog({
     setSelectedRepo(repo.fullName);
     setInput(applyRepoInput(repo));
   }, [githubReposQuery.data, selectedRepo]);
+
+  // 重置态
+  function resetState() {
+    setCreatedProject(null);
+    setDeviceFlow(null);
+    setInput(getDefaultInput());
+    setSelectedRepo("");
+  }
 
   // 改名称
   function handleNameChange(value: string) {
@@ -236,11 +251,32 @@ export default function CreateProjectDialog({
     setInput(applyRepoInput(repo));
   }
 
+  // 复制链路
+  async function handleCopyWebhook() {
+    if (!createdProject) {
+      return;
+    }
+
+    await copyText(createdProject.webhookUrl);
+    toast.success(t("dashboard.copyWebhookSuccess"));
+  }
+
+  // 完成关闭
+  function handleDone() {
+    resetState();
+    onOpenChange(false);
+  }
+
   // 提交表单
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     mutation.mutate({
+      aiConfig: {
+        apiKey: input.aiConfig.apiKey,
+        baseUrl: input.aiConfig.baseUrl,
+        model: input.aiConfig.model,
+      },
       name: input.name.trim(),
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
@@ -255,9 +291,7 @@ export default function CreateProjectDialog({
     <Dialog
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
-          setDeviceFlow(null);
-          setInput(getDefaultInput());
-          setSelectedRepo("");
+          resetState();
         }
 
         onOpenChange(nextOpen);
@@ -265,142 +299,189 @@ export default function CreateProjectDialog({
       open={open}
     >
       <DialogContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
-            <DialogDescription>
-              {t("dashboard.createProjectHint")}
-            </DialogDescription>
-          </DialogHeader>
+        {createdProject ? (
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
+              <DialogDescription>
+                {t("dashboard.webhookReady")}
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-3">
-            {githubAuthQuery.data?.connected ? (
-              <div className="rounded-md border px-3 py-2 text-sm">
-                <p className="font-medium">
-                  {t("dashboard.connectGithubDone")}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("dashboard.connectedAs", {
-                    login: githubAuthQuery.data.login || "github",
-                  })}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 rounded-md border px-3 py-3">
-                <p className="font-medium text-sm">
-                  {t("dashboard.connectGithubTitle")}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("dashboard.connectGithubHint")}
-                </p>
-                <Button
-                  disabled={startGithubMutation.isPending}
-                  onClick={handleConnectGithub}
-                  type="button"
-                >
-                  {t("dashboard.connectGithub")}
-                </Button>
-                {deviceFlow && (
-                  <div className="space-y-2 rounded-md bg-muted px-3 py-2">
-                    <p className="text-xs">{t("dashboard.githubUserCode")}</p>
-                    <p className="font-mono text-sm">{deviceFlow.userCode}</p>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleOpenGithub}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        {t("dashboard.openGithub")}
-                      </Button>
-                      <span className="self-center text-muted-foreground text-xs">
-                        {t("dashboard.waitingGithub")}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="space-y-3">
+              <label className="block space-y-1.5" htmlFor="project-webhook">
+                <span className="font-medium text-xs">
+                  {t("dashboard.webhookUrl")}
+                </span>
+                <Input
+                  disabled
+                  id="project-webhook"
+                  value={createdProject.webhookUrl}
+                />
+              </label>
+            </div>
 
-            <label className="block space-y-1.5" htmlFor="create-project-repo">
-              <span className="font-medium text-xs">
-                {t("dashboard.repository")}
-              </span>
-              <select
-                className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
-                disabled={
-                  githubAuthQuery.data?.connected !== true ||
-                  githubReposQuery.isLoading
-                }
-                id="create-project-repo"
-                onChange={(event) => handleRepoChange(event.target.value)}
-                value={selectedRepo}
+            <DialogFooter>
+              <Button
+                onClick={handleCopyWebhook}
+                type="button"
+                variant="outline"
               >
-                <option value="">{t("dashboard.repoSelectPlaceholder")}</option>
-                {githubReposQuery.data?.map((repo) => (
-                  <option key={repo.id} value={repo.fullName}>
-                    {repo.fullName}
-                  </option>
-                ))}
-              </select>
-              {githubAuthQuery.data?.connected &&
-                !githubReposQuery.data?.length && (
-                  <p className="text-muted-foreground text-xs">
-                    {t("dashboard.noGithubRepos")}
-                  </p>
-                )}
-            </label>
-
-            <label className="block space-y-1.5" htmlFor="create-project-name">
-              <span className="font-medium text-xs">
-                {t("dashboard.projectName")}
-              </span>
-              <Input
-                id="create-project-name"
-                onChange={(event) => handleNameChange(event.target.value)}
-                placeholder={t("dashboard.projectNamePlaceholder")}
-                value={input.name}
-              />
-            </label>
-
-            <label
-              className="block space-y-1.5"
-              htmlFor="create-project-base-branch"
-            >
-              <span className="font-medium text-xs">
-                {t("dashboard.baseBranch")}
-              </span>
-              <Input
-                id="create-project-base-branch"
-                onChange={(event) => handleBaseBranchChange(event.target.value)}
-                placeholder={t("dashboard.baseBranchPlaceholder")}
-                value={input.repoConfig.baseBranch}
-              />
-            </label>
-
-            {selectedRepoItem && (
-              <p className="text-muted-foreground text-xs">
-                {selectedRepoItem.private
-                  ? t("dashboard.privateRepo")
-                  : t("dashboard.publicRepo")}
-              </p>
-            )}
+                {t("dashboard.copy")}
+              </Button>
+              <Button onClick={handleDone} type="button">
+                {t("dashboard.done")}
+              </Button>
+            </DialogFooter>
           </div>
+        ) : (
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
+              <DialogDescription>
+                {t("dashboard.createProjectHint")}
+              </DialogDescription>
+            </DialogHeader>
 
-          <DialogFooter>
-            <Button
-              disabled={mutation.isPending}
-              onClick={() => onOpenChange(false)}
-              type="button"
-              variant="ghost"
-            >
-              {t("dashboard.cancel")}
-            </Button>
-            <Button disabled={disabled} type="submit">
-              {t("dashboard.connect")}
-            </Button>
-          </DialogFooter>
-        </form>
+            <div className="space-y-3">
+              {githubAuthQuery.data?.connected ? (
+                <div className="rounded-md border px-3 py-2 text-sm">
+                  <p className="font-medium">
+                    {t("dashboard.connectGithubDone")}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("dashboard.connectedAs", {
+                      login: githubAuthQuery.data.login || "github",
+                    })}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 rounded-md border px-3 py-3">
+                  <p className="font-medium text-sm">
+                    {t("dashboard.connectGithubTitle")}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {t("dashboard.connectGithubHint")}
+                  </p>
+                  <Button
+                    disabled={startGithubMutation.isPending}
+                    onClick={handleConnectGithub}
+                    type="button"
+                  >
+                    {t("dashboard.connectGithub")}
+                  </Button>
+                  {deviceFlow && (
+                    <div className="space-y-2 rounded-md bg-muted px-3 py-2">
+                      <p className="text-xs">{t("dashboard.githubUserCode")}</p>
+                      <p className="font-mono text-sm">{deviceFlow.userCode}</p>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleOpenGithub}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          {t("dashboard.openGithub")}
+                        </Button>
+                        <span className="self-center text-muted-foreground text-xs">
+                          {t("dashboard.waitingGithub")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <label
+                className="block space-y-1.5"
+                htmlFor="create-project-repo"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.repository")}
+                </span>
+                <select
+                  className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                  disabled={
+                    githubAuthQuery.data?.connected !== true ||
+                    githubReposQuery.isLoading
+                  }
+                  id="create-project-repo"
+                  onChange={(event) => handleRepoChange(event.target.value)}
+                  value={selectedRepo}
+                >
+                  <option value="">
+                    {t("dashboard.repoSelectPlaceholder")}
+                  </option>
+                  {githubReposQuery.data?.map((repo) => (
+                    <option key={repo.id} value={repo.fullName}>
+                      {repo.fullName}
+                    </option>
+                  ))}
+                </select>
+                {githubAuthQuery.data?.connected &&
+                  !githubReposQuery.data?.length && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("dashboard.noGithubRepos")}
+                    </p>
+                  )}
+              </label>
+
+              <label
+                className="block space-y-1.5"
+                htmlFor="create-project-name"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.projectName")}
+                </span>
+                <Input
+                  id="create-project-name"
+                  onChange={(event) => handleNameChange(event.target.value)}
+                  placeholder={t("dashboard.projectNamePlaceholder")}
+                  value={input.name}
+                />
+              </label>
+
+              <label
+                className="block space-y-1.5"
+                htmlFor="create-project-base-branch"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.baseBranch")}
+                </span>
+                <Input
+                  id="create-project-base-branch"
+                  onChange={(event) =>
+                    handleBaseBranchChange(event.target.value)
+                  }
+                  placeholder={t("dashboard.baseBranchPlaceholder")}
+                  value={input.repoConfig.baseBranch}
+                />
+              </label>
+
+              {selectedRepoItem && (
+                <p className="text-muted-foreground text-xs">
+                  {selectedRepoItem.private
+                    ? t("dashboard.privateRepo")
+                    : t("dashboard.publicRepo")}
+                </p>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                disabled={mutation.isPending}
+                onClick={() => onOpenChange(false)}
+                type="button"
+                variant="ghost"
+              >
+                {t("dashboard.cancel")}
+              </Button>
+              <Button disabled={disabled} type="submit">
+                {t("dashboard.connect")}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

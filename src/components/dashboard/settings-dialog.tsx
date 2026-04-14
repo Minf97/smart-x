@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { copyText } from "@/actions/shell";
 import { updateProject } from "@/api/alerts";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,11 @@ function updateProjectCache(data: DashboardData | undefined, project: Project) {
 // 项目入参
 function getProjectInput(project: Project) {
   return {
+    aiConfig: {
+      apiKey: project.aiConfig.apiKey,
+      baseUrl: project.aiConfig.baseUrl,
+      model: project.aiConfig.model,
+    },
     name: project.name,
     repoConfig: {
       baseBranch: project.repoConfig.baseBranch,
@@ -113,11 +119,55 @@ export default function SettingsDialog({
     }));
   }
 
+  // 改地址
+  function handleBaseUrlChange(value: string) {
+    setInput((current) => ({
+      ...current,
+      aiConfig: {
+        ...current.aiConfig,
+        baseUrl: value,
+      },
+    }));
+  }
+
+  // 改模型
+  function handleModelChange(value: string) {
+    setInput((current) => ({
+      ...current,
+      aiConfig: {
+        ...current.aiConfig,
+        model: value,
+      },
+    }));
+  }
+
+  // 改密钥
+  function handleApiKeyChange(value: string) {
+    setInput((current) => ({
+      ...current,
+      aiConfig: {
+        ...current.aiConfig,
+        apiKey: value,
+      },
+    }));
+  }
+
+  // 复制链路
+  async function handleCopyWebhook() {
+    await copyText(project.webhookUrl);
+    toast.success(t("dashboard.copyWebhookSuccess"));
+  }
+
   // 提交表单
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     mutation.mutate({
+      aiConfig: {
+        apiKey: input.aiConfig.apiKey.trim(),
+        baseUrl: input.aiConfig.baseUrl.trim(),
+        model: input.aiConfig.model.trim(),
+      },
       name: input.name.trim(),
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
@@ -185,6 +235,70 @@ export default function SettingsDialog({
                 value={input.repoConfig.baseBranch}
               />
             </label>
+
+            <label className="block space-y-1.5" htmlFor="project-webhook-url">
+              <span className="font-medium text-xs">
+                {t("dashboard.webhookUrl")}
+              </span>
+              <div className="flex gap-2">
+                <Input
+                  disabled
+                  id="project-webhook-url"
+                  value={project.webhookUrl}
+                />
+                <Button
+                  onClick={handleCopyWebhook}
+                  type="button"
+                  variant="outline"
+                >
+                  {t("dashboard.copy")}
+                </Button>
+              </div>
+            </label>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="font-medium text-xs">{t("dashboard.aiSettings")}</p>
+
+              <label
+                className="block space-y-1.5"
+                htmlFor="project-ai-base-url"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.aiBaseUrl")}
+                </span>
+                <Input
+                  id="project-ai-base-url"
+                  onChange={(event) => handleBaseUrlChange(event.target.value)}
+                  placeholder={t("dashboard.aiBaseUrlPlaceholder")}
+                  value={input.aiConfig.baseUrl}
+                />
+              </label>
+
+              <label className="block space-y-1.5" htmlFor="project-ai-model">
+                <span className="font-medium text-xs">
+                  {t("dashboard.aiModel")}
+                </span>
+                <Input
+                  id="project-ai-model"
+                  onChange={(event) => handleModelChange(event.target.value)}
+                  placeholder={t("dashboard.aiModelPlaceholder")}
+                  value={input.aiConfig.model}
+                />
+              </label>
+
+              <label className="block space-y-1.5" htmlFor="project-ai-key">
+                <span className="font-medium text-xs">
+                  {t("dashboard.aiApiKey")}
+                </span>
+                <Input
+                  id="project-ai-key"
+                  onChange={(event) => handleApiKeyChange(event.target.value)}
+                  placeholder={t("dashboard.aiApiKeyPlaceholder")}
+                  type="password"
+                  value={input.aiConfig.apiKey}
+                />
+              </label>
+            </div>
           </div>
 
           <DialogFooter>

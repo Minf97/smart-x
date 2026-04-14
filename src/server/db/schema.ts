@@ -12,6 +12,7 @@ export const githubAuthTable = sqliteTable("github_auth", {
 
 // 项目表
 export const projectsTable = sqliteTable("projects", {
+  aiConfigJson: text("ai_config_json").notNull(),
   createdAt: text("created_at").notNull(),
   id: text("id").primaryKey(),
   name: text("name").notNull(),
