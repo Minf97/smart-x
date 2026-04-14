@@ -1,3 +1,4 @@
+import "dotenv/config";
 import path from "node:path";
 import { app, BrowserWindow } from "electron";
 import { ipcMain } from "electron/main";
