@@ -1,4 +1,9 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { listAlerts, syncAlerts } from "@/api/alerts";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -8,11 +13,57 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { useAlertView } from "@/hooks/use-alerts";
+import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import { useAlertStore } from "@/store/alert-store";
 import { getLastSeen, getStatusIcon } from "./helpers";
 import ProjectSwitcher from "./project-switcher";
 import SettingsTrigger from "./settings-trigger";
+
+function AlertsRefreshButton() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const refreshMutation = useMutation({
+    async mutationFn() {
+      const result = await syncAlerts();
+
+      await queryClient.fetchQuery({
+        queryFn: listAlerts,
+        queryKey: ALERTS_QUERY_KEY,
+      });
+
+      return result;
+    },
+    onError(error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("dashboard.refreshAlertsFailed")
+      );
+    },
+    onSuccess(result) {
+      toast.success(t("dashboard.refreshAlertsSuccess"));
+    },
+  });
+
+  return (
+    <Button
+      aria-label={t("dashboard.refreshAlerts")}
+      className="h-7 w-7"
+      disabled={refreshMutation.isPending}
+      onClick={() => refreshMutation.mutate()}
+      size="icon"
+      title={t("dashboard.refreshAlerts")}
+      type="button"
+      variant="ghost"
+    >
+      <RefreshCw
+        className={
+          refreshMutation.isPending ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"
+        }
+      />
+    </Button>
+  );
+}
 
 export default function SidebarPanel() {
   const { t } = useTranslation();
@@ -35,7 +86,10 @@ export default function SidebarPanel() {
           <span className="text-muted-foreground/60">·</span>
           <span className="text-muted-foreground/60">{items.length}</span>
         </div>
-        <SettingsTrigger />
+        <div className="flex items-center gap-1">
+          <AlertsRefreshButton />
+          <SettingsTrigger />
+        </div>
       </div>
 
       <SidebarContent className="px-0">

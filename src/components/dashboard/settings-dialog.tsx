@@ -187,7 +187,7 @@ export default function SettingsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <form className="space-y-4" onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{t("dashboard.projectSettings")}</DialogTitle>

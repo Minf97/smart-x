@@ -1,4 +1,4 @@
-import type { Project } from "@shared/types/project";
+import type { Project, RequestProvider } from "@shared/types/project";
 import { useMemo } from "react";
 import { useProjectStore } from "@/store/project-store";
 
@@ -39,4 +39,23 @@ export function useCurrentProject() {
   }
 
   return currentProject;
+}
+
+// 当前项目仓库
+export function useCurrentProjectRepo(
+  provider?: RequestProvider
+): Project["repoConfig"] | null {
+  const { currentProject } = useProjects();
+
+  return useMemo(() => {
+    if (!currentProject) {
+      return null;
+    }
+
+    if (provider && currentProject.repoConfig.provider !== provider) {
+      return null;
+    }
+
+    return currentProject.repoConfig;
+  }, [currentProject, provider]);
 }
