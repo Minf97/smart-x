@@ -90,6 +90,7 @@ export interface StoredProjectRepoConfig {
   instanceUrl: string; // 地址
   managedRepoPath: string; // 路径
   provider: RequestProvider; // 平台
+  repoId?: string; // 项目ID (GitLab使用数字ID)
   repoName: string; // 仓库
   token: string; // 令牌
 }
@@ -101,6 +102,7 @@ export interface ProjectInput {
   repoConfig: {
     baseBranch: string; // 基线
     provider: RequestProvider; // 平台
+    repoId?: string; // 项目ID (GitLab使用数字ID)
     repoName: string; // 仓库
     token: string; // 令牌
   }; // 配置

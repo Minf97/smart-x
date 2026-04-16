@@ -46,7 +46,7 @@ async function saveConnectedAuth(input: {
   refreshToken: string;
 }) {
   const expiresAt = new Date(Date.now() + input.expiresIn * 1000).toISOString();
-  const auth = await getGitlabViewer(input.accessToken, input.baseUrl);
+  const auth = await getGitlabViewer(input.accessToken, input.baseUrl, input.clientId);
 
   saveGitlabAuthRow({
     accessToken: input.accessToken,

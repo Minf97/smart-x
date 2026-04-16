@@ -463,6 +463,7 @@ function toProjectInput(input: ProjectInput) {
     repoConfig: {
       baseBranch: input.repoConfig.baseBranch.trim(),
       provider: input.repoConfig.provider,
+      repoId: input.repoConfig.repoId?.trim(),
       repoName: input.repoConfig.repoName.trim(),
       token: input.repoConfig.token.trim(),
     },
@@ -725,13 +726,14 @@ export async function validateProjectConnection(input: ProjectInput) {
 
   const projectInput = toProjectInput(input);
   const connection = await resolveProjectConnection(projectInput.repoConfig);
-
+  
   if (projectInput.repoConfig.provider === "gitlab") {
     return validateGitlabProject(
       projectInput.repoConfig.repoName,
       projectInput.repoConfig.baseBranch,
       connection.token,
-      connection.instanceUrl
+      connection.instanceUrl,
+      projectInput.repoConfig.repoId!
     );
   }
 
@@ -818,8 +820,11 @@ export async function createProject(input: ProjectInput) {
 
   const db = getDb();
   const rows = listProjectRows();
+  // TODO：格式化输入，其实没什么用，可以删掉这个函数的
   const projectInput = toProjectInput(input);
+  // TODO：这里重复了，也是可以删掉的
   const connection = await resolveProjectConnection(projectInput.repoConfig);
+  // 验证。 容易在这里挂掉
   const validated = await validateProjectConnection(projectInput);
   const remoteProject = await createBackendProject(projectInput.name);
   const storedProject = {
@@ -832,6 +837,7 @@ export async function createProject(input: ProjectInput) {
       instanceUrl: validated.instanceUrl,
       managedRepoPath: buildManagedRepoPath(remoteProject.id),
       provider: validated.provider,
+      repoId: projectInput.repoConfig.repoId, // 保存项目 ID
       repoName: validated.repoName,
       token: connection.token,
     },
@@ -842,14 +848,22 @@ export async function createProject(input: ProjectInput) {
     webhookUrl: remoteProject.webhookUrl,
   } satisfies StoredProject;
 
-  await cloneManagedRepo({
-    baseBranch: storedProject.repoConfig.baseBranch,
-    instanceUrl: storedProject.repoConfig.instanceUrl,
-    provider: storedProject.repoConfig.provider,
-    repoName: storedProject.repoConfig.repoName,
-    repoPath: storedProject.repoConfig.managedRepoPath,
-    token: storedProject.repoConfig.token,
-  });
+  try {
+    await cloneManagedRepo({
+      baseBranch: storedProject.repoConfig.baseBranch,
+      instanceUrl: storedProject.repoConfig.instanceUrl,
+      provider: storedProject.repoConfig.provider,
+      repoName: storedProject.repoConfig.repoName,
+      repoPath: storedProject.repoConfig.managedRepoPath,
+      token: storedProject.repoConfig.token,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to clone managed repository. ${
+        error instanceof Error ? error.message : "Unknown git error."
+      }`
+    );
+  }
 
   db.insert(projectsTable)
     .values(toProjectRow(storedProject, rows.length))
@@ -898,7 +912,8 @@ export async function updateProject(id: string, input: ProjectInput) {
       projectInput.repoConfig.repoName,
       projectInput.repoConfig.baseBranch,
       connection.token,
-      connection.instanceUrl
+      connection.instanceUrl,
+      projectInput.repoConfig.repoId!
     );
   } else {
     await validateGithubProject(

@@ -80,7 +80,10 @@ export function buildAuthorizeUrl(
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("redirect_uri", getGitlabRedirectUri());
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "api read_user");
+  url.searchParams.set(
+    "scope",
+    "api read_user read_repository write_repository"
+  );
   url.searchParams.set("state", state);
 
   return url.toString();

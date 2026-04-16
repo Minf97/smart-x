@@ -95,6 +95,7 @@ function getDefaultInput(provider: RequestProvider = "github"): ProjectInput {
     repoConfig: {
       baseBranch: "",
       provider,
+      repoId: "",
       repoName: "",
       token: "",
     },
@@ -124,6 +125,7 @@ function applyRepoInput(
     repoConfig: {
       baseBranch: repo.defaultBranch,
       provider,
+      repoId: String(repo.id), // 存储项目 ID
       repoName: repo.fullName,
       token: "",
     },
@@ -419,6 +421,7 @@ export default function CreateProjectDialog({
   const mutation = useMutation({
     mutationFn: createProject,
     onError(error) {
+      console.trace("创建项目失败", error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -672,6 +675,7 @@ export default function CreateProjectDialog({
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
         provider,
+        repoId: input.repoConfig.repoId?.trim() || "",
         repoName: input.repoConfig.repoName.trim(),
         token: "",
       },

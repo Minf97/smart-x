@@ -96,6 +96,7 @@ export async function createRequest(
           baseUrl: config.instanceUrl,
           body: buildRequestBody(item),
           branchName,
+          repoId: config.repoId, // 传入项目 ID
           repoName: config.repoName,
           title,
           token,
@@ -134,6 +135,7 @@ export async function mergeRequest(
     await mergeGitlabMergeRequest({
       baseUrl: config.instanceUrl,
       remoteId: request.remoteId,
+      repoId: config.repoId, // 传入项目 ID
       repoName: request.repoName,
       token,
     });
@@ -163,6 +165,7 @@ export async function closeRequest(
     await closeGitlabMergeRequest({
       baseUrl: config.instanceUrl,
       remoteId: request.remoteId,
+      repoId: config.repoId, // 传入项目 ID
       repoName: request.repoName,
       token,
     });

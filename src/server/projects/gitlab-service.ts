@@ -27,6 +27,7 @@ interface GitlabMergeInput {
   baseUrl: string;
   body: string;
   branchName: string;
+  repoId?: string; // 项目 ID（优先使用）
   repoName: string;
   title: string;
   token: string;
@@ -35,6 +36,7 @@ interface GitlabMergeInput {
 interface GitlabRequestInput {
   baseUrl: string;
   remoteId: string;
+  repoId?: string; // 项目 ID（优先使用）
   repoName: string;
   token: string;
 }
@@ -92,9 +94,9 @@ export async function validateGitlabProject(
   repoName: string,
   baseBranch: string,
   token: string,
-  baseUrl: string
+  baseUrl: string,
+  repoId: string
 ): Promise<ProjectValidationResult> {
-  const repoId = encodeURIComponent(repoName);
   const branchId = encodeURIComponent(baseBranch);
   const repo = await requestGitlab<GitlabProjectResponse>({
     baseUrl,
@@ -118,7 +120,10 @@ export async function validateGitlabProject(
 
 // 创建MR
 export async function createGitlabMergeRequest(input: GitlabMergeInput) {
-  const repoId = encodeURIComponent(input.repoName);
+  if (!input.repoId) {
+    throw new Error("GitLab repoId is required");
+  }
+
   const request = await requestGitlab<GitlabMergeResponse>({
     baseUrl: input.baseUrl,
     body: {
@@ -128,7 +133,7 @@ export async function createGitlabMergeRequest(input: GitlabMergeInput) {
       title: input.title,
     },
     method: "POST",
-    path: `api/v4/projects/${repoId}/merge_requests`,
+    path: `api/v4/projects/${input.repoId}/merge_requests`,
     token: input.token,
   });
 
@@ -141,7 +146,8 @@ export async function createGitlabMergeRequest(input: GitlabMergeInput) {
 // 当前账号
 export async function getGitlabViewer(
   token: string,
-  baseUrl: string
+  baseUrl: string,
+  clientId?: string
 ): Promise<GitlabAuthState> {
   const user = await requestGitlab<GitlabUserResponse>({
     baseUrl,
@@ -152,6 +158,7 @@ export async function getGitlabViewer(
   return {
     avatarUrl: user.avatar_url,
     baseUrl: normalizeGitlabUrl(baseUrl),
+    clientId: clientId || null,
     connected: true,
     login: user.username,
     name: user.name,
@@ -182,20 +189,26 @@ export async function listGitlabAccessibleRepos(
 
 // 合并MR
 export async function mergeGitlabMergeRequest(input: GitlabRequestInput) {
-  const repoId = encodeURIComponent(input.repoName);
+  if (!input.repoId) {
+    throw new Error("GitLab repoId is required");
+  }
+
   const requestId = encodeURIComponent(input.remoteId);
 
   await requestGitlab({
     baseUrl: input.baseUrl,
     method: "PUT",
-    path: `api/v4/projects/${repoId}/merge_requests/${requestId}/merge`,
+    path: `api/v4/projects/${input.repoId}/merge_requests/${requestId}/merge`,
     token: input.token,
   });
 }
 
 // 关闭MR
 export async function closeGitlabMergeRequest(input: GitlabRequestInput) {
-  const repoId = encodeURIComponent(input.repoName);
+  if (!input.repoId) {
+    throw new Error("GitLab repoId is required");
+  }
+
   const requestId = encodeURIComponent(input.remoteId);
 
   await requestGitlab({
@@ -204,7 +217,7 @@ export async function closeGitlabMergeRequest(input: GitlabRequestInput) {
       state_event: "close",
     },
     method: "PUT",
-    path: `api/v4/projects/${repoId}/merge_requests/${requestId}`,
+    path: `api/v4/projects/${input.repoId}/merge_requests/${requestId}`,
     token: input.token,
   });
 }
