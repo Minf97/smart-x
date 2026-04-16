@@ -7,3 +7,7 @@ export function openExternalLink(url: string) {
 export function copyText(text: string) {
   return ipc.client.shell.copyText({ text });
 }
+
+export function openPath(path: string) {
+  return ipc.client.shell.openPath({ path });
+}

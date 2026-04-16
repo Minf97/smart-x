@@ -1,26 +1,29 @@
 import {
   getDefaultProjectAiConfig,
   type Project,
+  type ProjectCreateProgress,
   type ProjectInput,
   REQUEST_PROVIDER_LABELS,
   type RequestProvider,
 } from "@shared/types/project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { copyText, openExternalLink } from "@/actions/shell";
 import {
-  createProject,
   getGithubAuth,
   getGitlabAuth,
   listGithubRepos,
   listGitlabRepos,
+  pollCreateProject,
   pollGithubDeviceFlow,
   pollGitlabOauthFlow,
+  startCreateProject,
   startGithubDeviceFlow,
   startGitlabOauthFlow,
 } from "@/api/alerts";
+import { ProjectCreateProgressSection } from "@/components/dashboard/project-create-progress-section";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,6 +44,7 @@ const GITHUB_AUTH_QUERY_KEY = ["github-auth"] as const;
 const GITHUB_REPOS_QUERY_KEY = ["github-repos"] as const;
 const GITLAB_AUTH_QUERY_KEY = ["gitlab-auth"] as const;
 const GITLAB_REPOS_QUERY_KEY = ["gitlab-repos"] as const;
+const PROJECT_CREATE_QUERY_KEY = ["project-create"] as const;
 
 interface CreateProjectDialogProps {
   onOpenChange: (open: boolean) => void;
@@ -81,7 +85,7 @@ interface RepoSelectFieldProps {
   loading: boolean;
   onChange: (value: string) => void;
   repos: RepoOption[] | undefined;
-  selectedRepo: string;
+  selectedRepoId: string;
   texts: ProviderTexts;
 }
 
@@ -94,6 +98,7 @@ function getDefaultInput(provider: RequestProvider = "github"): ProjectInput {
     name: "",
     repoConfig: {
       baseBranch: "",
+      managedRepoPath: "",
       provider,
       repoId: "",
       repoName: "",
@@ -124,6 +129,7 @@ function applyRepoInput(
     name: repo.name,
     repoConfig: {
       baseBranch: repo.defaultBranch,
+      managedRepoPath: "",
       provider,
       repoId: String(repo.id), // 存储项目 ID
       repoName: repo.fullName,
@@ -218,6 +224,167 @@ function WebhookReadySection({
   );
 }
 
+// 查仓库
+function findRepoById(repos: RepoOption[] | undefined, repoId: string) {
+  return repos?.find((repo) => String(repo.id) === repoId) ?? null;
+}
+
+// 打开授权
+function openAuthorizePage(input: {
+  githubFlow: GithubDeviceFlow | null;
+  gitlabFlow: GitlabOauthFlow | null;
+  provider: RequestProvider;
+}) {
+  if (input.provider === "gitlab") {
+    if (input.gitlabFlow) {
+      openExternalLink(input.gitlabFlow.authorizeUrl);
+    }
+
+    return;
+  }
+
+  if (input.githubFlow) {
+    openExternalLink(input.githubFlow.verificationUri);
+  }
+}
+
+// 复制链接
+async function copyWebhookUrl(
+  project: Project | null,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  if (!project) {
+    return;
+  }
+
+  await copyText(project.webhookUrl);
+  toast.success(t("dashboard.copyWebhookSuccess"));
+}
+
+// 当前进度
+function getActiveCreateProgress(input: {
+  createProgress: ProjectCreateProgress | null;
+  createSessionId: string | null;
+  pollCreateData: ProjectCreateProgress | undefined;
+}) {
+  return input.createSessionId
+    ? (input.pollCreateData ?? input.createProgress)
+    : input.createProgress;
+}
+
+// 是否禁用
+function isCreateDisabled(input: {
+  activeCreateProgress: ProjectCreateProgress | null;
+  connected: boolean;
+  isPending: boolean;
+  name: string;
+  repoName: string;
+  baseBranch: string;
+}) {
+  return (
+    input.isPending ||
+    input.activeCreateProgress?.status === "pending" ||
+    !input.connected ||
+    input.name.trim().length === 0 ||
+    input.repoName.trim().length === 0 ||
+    input.baseBranch.trim().length === 0
+  );
+}
+
+// 创建回调
+function useProjectCreateState({
+  addProject,
+  pollCreateData,
+  pollCreateError,
+  queryClient,
+  setCreateProgress,
+  setCreateSessionId,
+  setCreatedProject,
+  setGithubFlow,
+  setGitlabFlow,
+  setInput,
+  setSelectedRepoId,
+  t,
+}: {
+  addProject: (project: Project) => void;
+  pollCreateData: ProjectCreateProgress | undefined;
+  pollCreateError: Error | null;
+  queryClient: ReturnType<typeof useQueryClient>;
+  setCreateProgress: (progress: ProjectCreateProgress | null) => void;
+  setCreateSessionId: (sessionId: string | null) => void;
+  setCreatedProject: (project: Project | null) => void;
+  setGithubFlow: (flow: GithubDeviceFlow | null) => void;
+  setGitlabFlow: (flow: GitlabOauthFlow | null) => void;
+  setInput: (input: ProjectInput) => void;
+  setSelectedRepoId: (repoId: string) => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  useEffect(() => {
+    if (!pollCreateData) {
+      return;
+    }
+
+    setCreateProgress(pollCreateData);
+  }, [pollCreateData, setCreateProgress]);
+
+  useEffect(() => {
+    if (!(pollCreateData?.status === "completed" && pollCreateData.project)) {
+      return;
+    }
+
+    const project = pollCreateData.project;
+
+    queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
+      appendProjectCache(data, project)
+    );
+    addProject(project);
+    setCreatedProject(project);
+    toast.success(t("dashboard.createProjectSuccess"));
+    setGithubFlow(null);
+    setGitlabFlow(null);
+    setInput(getDefaultInput());
+    setSelectedRepoId("");
+    setCreateSessionId(null);
+  }, [
+    addProject,
+    pollCreateData,
+    queryClient,
+    setCreateSessionId,
+    setCreatedProject,
+    setGithubFlow,
+    setGitlabFlow,
+    setInput,
+    setSelectedRepoId,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (pollCreateData?.status !== "failed") {
+      return;
+    }
+
+    setCreateSessionId(null);
+    setCreateProgress(null);
+    toast.error(
+      pollCreateData.errorMessage || t("dashboard.createProjectFailed")
+    );
+  }, [pollCreateData, setCreateProgress, setCreateSessionId, t]);
+
+  useEffect(() => {
+    if (!pollCreateError) {
+      return;
+    }
+
+    setCreateProgress(null);
+    setCreateSessionId(null);
+    toast.error(
+      pollCreateError instanceof Error
+        ? pollCreateError.message
+        : t("dashboard.createProjectFailed")
+    );
+  }, [pollCreateError, setCreateProgress, setCreateSessionId, t]);
+}
+
 // 连接卡片
 function ProviderStatusCard({
   connectPending,
@@ -288,7 +455,7 @@ function RepoSelectField({
   loading,
   onChange,
   repos,
-  selectedRepo,
+  selectedRepoId,
   texts,
 }: RepoSelectFieldProps) {
   return (
@@ -299,11 +466,11 @@ function RepoSelectField({
         disabled={!connected || loading}
         id="create-project-repo"
         onChange={(event) => onChange(event.target.value)}
-        value={selectedRepo}
+        value={selectedRepoId}
       >
         <option value="">{texts.repoPlaceholder}</option>
         {repos?.map((repo) => (
-          <option key={repo.id} value={repo.fullName}>
+          <option key={repo.id} value={String(repo.id)}>
             {repo.fullName}
           </option>
         ))}
@@ -328,7 +495,10 @@ export default function CreateProjectDialog({
   const [gitlabFlow, setGitlabFlow] = useState<GitlabOauthFlow | null>(null);
   const [gitlabBaseUrl, setGitlabBaseUrl] = useState("");
   const [gitlabClientId, setGitlabClientId] = useState("");
-  const [selectedRepo, setSelectedRepo] = useState("");
+  const [createProgress, setCreateProgress] =
+    useState<ProjectCreateProgress | null>(null);
+  const [createSessionId, setCreateSessionId] = useState<string | null>(null);
+  const [selectedRepoId, setSelectedRepoId] = useState("");
   const provider = input.repoConfig.provider;
   const providerTexts = getProviderTexts(provider, t);
   const githubAuthQuery = useQuery({
@@ -418,28 +588,41 @@ export default function CreateProjectDialog({
       toast.success(getProviderTexts("gitlab", t).connectStarted);
     },
   });
-  const mutation = useMutation({
-    mutationFn: createProject,
+  const startCreateMutation = useMutation({
+    mutationFn: startCreateProject,
     onError(error) {
       console.trace("创建项目失败", error);
+      setCreateProgress(null);
+      setCreateSessionId(null);
       toast.error(
         error instanceof Error
           ? error.message
           : t("dashboard.createProjectFailed")
       );
     },
-    onSuccess(project) {
-      queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
-        appendProjectCache(data, project)
-      );
-      addProject(project);
-      setCreatedProject(project);
-      toast.success(t("dashboard.createProjectSuccess"));
-      setGithubFlow(null);
-      setGitlabFlow(null);
-      setInput(getDefaultInput());
-      setSelectedRepo("");
+    onSuccess(progress) {
+      setCreateProgress(progress);
+      setCreateSessionId(progress.sessionId);
     },
+  });
+  const pollCreateQuery = useQuery({
+    enabled: !!createSessionId,
+    queryFn: () => {
+      if (!createSessionId) {
+        throw new Error("Project creation session is not ready.");
+      }
+
+      return pollCreateProject(createSessionId);
+    },
+    queryKey: [...PROJECT_CREATE_QUERY_KEY, createSessionId],
+    refetchInterval(query) {
+      if (query.state.data?.status !== "pending") {
+        return false;
+      }
+
+      return 500;
+    },
+    retry: false,
   });
   const currentAuth =
     provider === "gitlab" ? gitlabAuthQuery.data : githubAuthQuery.data;
@@ -451,14 +634,36 @@ export default function CreateProjectDialog({
       ? gitlabReposQuery.isLoading
       : githubReposQuery.isLoading;
   const selectedRepoItem = useMemo(() => {
-    return currentRepos?.find((repo) => repo.fullName === selectedRepo) ?? null;
-  }, [currentRepos, selectedRepo]);
-  const disabled =
-    mutation.isPending ||
-    currentAuth?.connected !== true ||
-    input.name.trim().length === 0 ||
-    input.repoConfig.repoName.trim().length === 0 ||
-    input.repoConfig.baseBranch.trim().length === 0;
+    return findRepoById(currentRepos, selectedRepoId);
+  }, [currentRepos, selectedRepoId]);
+  const activeCreateProgress = getActiveCreateProgress({
+    createProgress,
+    createSessionId,
+    pollCreateData: pollCreateQuery.data,
+  });
+  const disabled = isCreateDisabled({
+    activeCreateProgress,
+    baseBranch: input.repoConfig.baseBranch,
+    connected: currentAuth?.connected === true,
+    isPending: startCreateMutation.isPending,
+    name: input.name,
+    repoName: input.repoConfig.repoName,
+  });
+
+  useProjectCreateState({
+    addProject,
+    pollCreateData: pollCreateQuery.data,
+    pollCreateError: pollCreateQuery.error,
+    queryClient,
+    setCreateProgress,
+    setCreateSessionId,
+    setCreatedProject,
+    setGithubFlow,
+    setGitlabFlow,
+    setInput,
+    setSelectedRepoId,
+    t,
+  });
 
   useEffect(() => {
     if (pollGithubQuery.data?.status !== "connected") {
@@ -549,25 +754,27 @@ export default function CreateProjectDialog({
       return;
     }
 
-    if (selectedRepo) {
+    if (selectedRepoId) {
       return;
     }
 
     const repo = currentRepos[0];
 
-    setSelectedRepo(repo.fullName);
+    setSelectedRepoId(String(repo.id));
     setInput(applyRepoInput(provider, repo));
-  }, [currentRepos, provider, selectedRepo]);
+  }, [currentRepos, provider, selectedRepoId]);
 
   // 重置弹窗态
   function resetState() {
     setCreatedProject(null);
+    setCreateProgress(null);
+    setCreateSessionId(null);
     setGithubFlow(null);
     setGitlabFlow(null);
     setGitlabBaseUrl(gitlabAuthQuery.data?.baseUrl || "");
     setGitlabClientId(gitlabAuthQuery.data?.clientId || "");
     setInput(getDefaultInput());
-    setSelectedRepo("");
+    setSelectedRepoId("");
   }
 
   // 改平台值
@@ -577,7 +784,7 @@ export default function CreateProjectDialog({
     setGithubFlow(null);
     setGitlabFlow(null);
     setInput(getDefaultInput(nextProvider));
-    setSelectedRepo("");
+    setSelectedRepoId("");
   }
 
   // 改名称
@@ -621,22 +828,17 @@ export default function CreateProjectDialog({
 
   // 打开授权
   function handleOpenAuthorizePage() {
-    if (provider === "gitlab") {
-      if (gitlabFlow) {
-        openExternalLink(gitlabFlow.authorizeUrl);
-      }
-      return;
-    }
-
-    if (githubFlow) {
-      openExternalLink(githubFlow.verificationUri);
-    }
+    openAuthorizePage({
+      githubFlow,
+      gitlabFlow,
+      provider,
+    });
   }
 
   // 选仓库
-  function handleRepoChange(fullName: string) {
-    setSelectedRepo(fullName);
-    const repo = currentRepos?.find((item) => item.fullName === fullName);
+  function handleRepoChange(repoId: string) {
+    setSelectedRepoId(repoId);
+    const repo = findRepoById(currentRepos, repoId);
 
     if (!repo) {
       return;
@@ -647,12 +849,7 @@ export default function CreateProjectDialog({
 
   // 复制webhook
   async function handleCopyWebhook() {
-    if (!createdProject) {
-      return;
-    }
-
-    await copyText(createdProject.webhookUrl);
-    toast.success(t("dashboard.copyWebhookSuccess"));
+    await copyWebhookUrl(createdProject, t);
   }
 
   // 关闭成功态
@@ -665,7 +862,16 @@ export default function CreateProjectDialog({
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    mutation.mutate({
+    setCreateProgress({
+      errorMessage: null,
+      progress: 4,
+      project: null,
+      sessionId: "",
+      status: "pending",
+      step: "listProjectRows",
+    });
+
+    startCreateMutation.mutate({
       aiConfig: {
         apiKey: input.aiConfig.apiKey,
         baseUrl: input.aiConfig.baseUrl,
@@ -674,12 +880,177 @@ export default function CreateProjectDialog({
       name: input.name.trim(),
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
+        managedRepoPath: input.repoConfig.managedRepoPath?.trim() || "",
         provider,
         repoId: input.repoConfig.repoId?.trim() || "",
         repoName: input.repoConfig.repoName.trim(),
         token: "",
       },
     });
+  }
+
+  let dialogBody: ReactNode;
+
+  if (createdProject) {
+    dialogBody = (
+      <WebhookReadySection
+        onCopy={handleCopyWebhook}
+        onDone={handleDone}
+        project={createdProject}
+        t={t}
+      />
+    );
+  } else if (activeCreateProgress) {
+    dialogBody = (
+      <ProjectCreateProgressSection progress={activeCreateProgress} />
+    );
+  } else {
+    dialogBody = (
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <DialogHeader>
+          <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
+          <DialogDescription>
+            {t("dashboard.createProjectHint")}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <label
+            className="block space-y-1.5"
+            htmlFor="create-project-provider"
+          >
+            <span className="font-medium text-xs">
+              {t("dashboard.provider")}
+            </span>
+            <select
+              className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              id="create-project-provider"
+              onChange={(event) => handleProviderChange(event.target.value)}
+              value={provider}
+            >
+              <option value="github">{REQUEST_PROVIDER_LABELS.github}</option>
+              <option value="gitlab">{REQUEST_PROVIDER_LABELS.gitlab}</option>
+            </select>
+          </label>
+
+          {provider === "gitlab" ? (
+            <div className="space-y-3">
+              <label
+                className="block space-y-1.5"
+                htmlFor="create-project-gitlab-base-url"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.gitlabBaseUrl")}
+                </span>
+                <Input
+                  disabled={currentAuth?.connected === true}
+                  id="create-project-gitlab-base-url"
+                  onChange={(event) =>
+                    handleGitlabBaseUrlChange(event.target.value)
+                  }
+                  placeholder={t("dashboard.gitlabBaseUrlPlaceholder")}
+                  value={gitlabBaseUrl}
+                />
+              </label>
+
+              <label
+                className="block space-y-1.5"
+                htmlFor="create-project-gitlab-client-id"
+              >
+                <span className="font-medium text-xs">
+                  {t("dashboard.gitlabClientId")}
+                </span>
+                <Input
+                  disabled={currentAuth?.connected === true}
+                  id="create-project-gitlab-client-id"
+                  onChange={(event) =>
+                    handleGitlabClientIdChange(event.target.value)
+                  }
+                  placeholder={t("dashboard.gitlabClientIdPlaceholder")}
+                  value={gitlabClientId}
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <ProviderStatusCard
+            connectDisabled={
+              provider === "gitlab" &&
+              (gitlabBaseUrl.trim().length === 0 ||
+                gitlabClientId.trim().length === 0)
+            }
+            connected={currentAuth?.connected === true}
+            connectPending={
+              startGithubMutation.isPending || startGitlabMutation.isPending
+            }
+            flow={currentFlow}
+            login={currentAuth?.login}
+            onConnect={handleConnectProvider}
+            onOpen={handleOpenAuthorizePage}
+            provider={provider}
+            texts={providerTexts}
+          />
+
+          <RepoSelectField
+            connected={currentAuth?.connected === true}
+            loading={currentReposLoading}
+            onChange={handleRepoChange}
+            repos={currentRepos}
+            selectedRepoId={selectedRepoId}
+            texts={providerTexts}
+          />
+
+          <label className="block space-y-1.5" htmlFor="create-project-name">
+            <span className="font-medium text-xs">
+              {t("dashboard.projectName")}
+            </span>
+            <Input
+              id="create-project-name"
+              onChange={(event) => handleNameChange(event.target.value)}
+              placeholder={t("dashboard.projectNamePlaceholder")}
+              value={input.name}
+            />
+          </label>
+
+          <label
+            className="block space-y-1.5"
+            htmlFor="create-project-base-branch"
+          >
+            <span className="font-medium text-xs">
+              {t("dashboard.baseBranch")}
+            </span>
+            <Input
+              id="create-project-base-branch"
+              onChange={(event) => handleBaseBranchChange(event.target.value)}
+              placeholder={t("dashboard.baseBranchPlaceholder")}
+              value={input.repoConfig.baseBranch}
+            />
+          </label>
+
+          {selectedRepoItem ? (
+            <p className="text-muted-foreground text-xs">
+              {selectedRepoItem.private
+                ? t("dashboard.privateRepo")
+                : t("dashboard.publicRepo")}
+            </p>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button
+            disabled={startCreateMutation.isPending}
+            onClick={() => onOpenChange(false)}
+            type="button"
+            variant="ghost"
+          >
+            {t("dashboard.cancel")}
+          </Button>
+          <Button disabled={disabled} type="submit">
+            {t("dashboard.connect")}
+          </Button>
+        </DialogFooter>
+      </form>
+    );
   }
 
   return (
@@ -693,170 +1064,7 @@ export default function CreateProjectDialog({
       }}
       open={open}
     >
-      <DialogContent>
-        {createdProject ? (
-          <WebhookReadySection
-            onCopy={handleCopyWebhook}
-            onDone={handleDone}
-            project={createdProject}
-            t={t}
-          />
-        ) : (
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <DialogHeader>
-              <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
-              <DialogDescription>
-                {t("dashboard.createProjectHint")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <label
-                className="block space-y-1.5"
-                htmlFor="create-project-provider"
-              >
-                <span className="font-medium text-xs">
-                  {t("dashboard.provider")}
-                </span>
-                <select
-                  className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
-                  id="create-project-provider"
-                  onChange={(event) => handleProviderChange(event.target.value)}
-                  value={provider}
-                >
-                  <option value="github">
-                    {REQUEST_PROVIDER_LABELS.github}
-                  </option>
-                  <option value="gitlab">
-                    {REQUEST_PROVIDER_LABELS.gitlab}
-                  </option>
-                </select>
-              </label>
-
-              {provider === "gitlab" ? (
-                <div className="space-y-3">
-                  <label
-                    className="block space-y-1.5"
-                    htmlFor="create-project-gitlab-base-url"
-                  >
-                    <span className="font-medium text-xs">
-                      {t("dashboard.gitlabBaseUrl")}
-                    </span>
-                    <Input
-                      disabled={currentAuth?.connected === true}
-                      id="create-project-gitlab-base-url"
-                      onChange={(event) =>
-                        handleGitlabBaseUrlChange(event.target.value)
-                      }
-                      placeholder={t("dashboard.gitlabBaseUrlPlaceholder")}
-                      value={gitlabBaseUrl}
-                    />
-                  </label>
-
-                  <label
-                    className="block space-y-1.5"
-                    htmlFor="create-project-gitlab-client-id"
-                  >
-                    <span className="font-medium text-xs">
-                      {t("dashboard.gitlabClientId")}
-                    </span>
-                    <Input
-                      disabled={currentAuth?.connected === true}
-                      id="create-project-gitlab-client-id"
-                      onChange={(event) =>
-                        handleGitlabClientIdChange(event.target.value)
-                      }
-                      placeholder={t("dashboard.gitlabClientIdPlaceholder")}
-                      value={gitlabClientId}
-                    />
-                  </label>
-                </div>
-              ) : null}
-
-              <ProviderStatusCard
-                connectDisabled={
-                  provider === "gitlab" &&
-                  (gitlabBaseUrl.trim().length === 0 ||
-                    gitlabClientId.trim().length === 0)
-                }
-                connected={currentAuth?.connected === true}
-                connectPending={
-                  startGithubMutation.isPending || startGitlabMutation.isPending
-                }
-                flow={currentFlow}
-                login={currentAuth?.login}
-                onConnect={handleConnectProvider}
-                onOpen={handleOpenAuthorizePage}
-                provider={provider}
-                texts={providerTexts}
-              />
-
-              <RepoSelectField
-                connected={currentAuth?.connected === true}
-                loading={currentReposLoading}
-                onChange={handleRepoChange}
-                repos={currentRepos}
-                selectedRepo={selectedRepo}
-                texts={providerTexts}
-              />
-
-              <label
-                className="block space-y-1.5"
-                htmlFor="create-project-name"
-              >
-                <span className="font-medium text-xs">
-                  {t("dashboard.projectName")}
-                </span>
-                <Input
-                  id="create-project-name"
-                  onChange={(event) => handleNameChange(event.target.value)}
-                  placeholder={t("dashboard.projectNamePlaceholder")}
-                  value={input.name}
-                />
-              </label>
-
-              <label
-                className="block space-y-1.5"
-                htmlFor="create-project-base-branch"
-              >
-                <span className="font-medium text-xs">
-                  {t("dashboard.baseBranch")}
-                </span>
-                <Input
-                  id="create-project-base-branch"
-                  onChange={(event) =>
-                    handleBaseBranchChange(event.target.value)
-                  }
-                  placeholder={t("dashboard.baseBranchPlaceholder")}
-                  value={input.repoConfig.baseBranch}
-                />
-              </label>
-
-              {selectedRepoItem && (
-                <p className="text-muted-foreground text-xs">
-                  {selectedRepoItem.private
-                    ? t("dashboard.privateRepo")
-                    : t("dashboard.publicRepo")}
-                </p>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button
-                disabled={mutation.isPending}
-                onClick={() => onOpenChange(false)}
-                type="button"
-                variant="ghost"
-              >
-                {t("dashboard.cancel")}
-              </Button>
-              <Button disabled={disabled} type="submit">
-                {t("dashboard.connect")}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
+      <DialogContent>{dialogBody}</DialogContent>
     </Dialog>
   );
 }

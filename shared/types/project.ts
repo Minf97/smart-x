@@ -81,6 +81,7 @@ export interface ProjectRepoConfig {
   instanceUrl: string; // 地址
   managedRepoPath: string; // 路径
   provider: RequestProvider; // 平台
+  repoId?: string; // 项目ID
   repoName: string; // 仓库
 }
 
@@ -101,6 +102,7 @@ export interface ProjectInput {
   name: string; // 名称
   repoConfig: {
     baseBranch: string; // 基线
+    managedRepoPath?: string; // 路径
     provider: RequestProvider; // 平台
     repoId?: string; // 项目ID (GitLab使用数字ID)
     repoName: string; // 仓库
@@ -129,4 +131,32 @@ export interface Project extends ProjectRecord {
   aiConfig: ProjectAiConfig; // AI
   repoConfig: ProjectRepoConfig; // 配置
   requestMap: Record<string, CodeRequest>; // 请求表
+}
+
+export const PROJECT_CREATE_STATUS_VALUES = [
+  "pending",
+  "completed",
+  "failed",
+] as const;
+
+export type ProjectCreateStatus = (typeof PROJECT_CREATE_STATUS_VALUES)[number];
+
+export const PROJECT_CREATE_STEP_VALUES = [
+  "listProjectRows",
+  "validateProjectConnection",
+  "createBackendProject",
+  "cloneManagedRepo",
+  "saveProject",
+  "done",
+] as const;
+
+export type ProjectCreateStep = (typeof PROJECT_CREATE_STEP_VALUES)[number];
+
+export interface ProjectCreateProgress {
+  errorMessage: string | null;
+  progress: number; // 进度
+  project: Project | null; // 结果
+  sessionId: string; // 会话
+  status: ProjectCreateStatus; // 状态
+  step: ProjectCreateStep; // 步骤
 }

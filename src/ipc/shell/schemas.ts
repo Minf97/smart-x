@@ -7,3 +7,7 @@ export const openExternalLinkInputSchema = z.object({
 export const copyTextInputSchema = z.object({
   text: z.string(),
 });
+
+export const openPathInputSchema = z.object({
+  path: z.string().trim().min(1),
+});

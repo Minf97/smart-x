@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { copyText } from "@/actions/shell";
 import { updateProject } from "@/api/alerts";
+import { RepoPathField } from "@/components/dashboard/repo-path-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,7 +51,9 @@ function getProjectInput(project: Project) {
     name: project.name,
     repoConfig: {
       baseBranch: project.repoConfig.baseBranch,
+      managedRepoPath: project.repoConfig.managedRepoPath,
       provider: project.repoConfig.provider,
+      repoId: project.repoConfig.repoId,
       repoName: project.repoConfig.repoName,
       token: "",
     },
@@ -161,6 +164,8 @@ export default function SettingsDialog({
   // 提交表单
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const managedRepoPath = String(formData.get("managedRepoPath") || "");
 
     mutation.mutate({
       aiConfig: {
@@ -171,7 +176,9 @@ export default function SettingsDialog({
       name: input.name.trim(),
       repoConfig: {
         baseBranch: input.repoConfig.baseBranch.trim(),
+        managedRepoPath: managedRepoPath.trim(),
         provider: input.repoConfig.provider,
+        repoId: input.repoConfig.repoId,
         repoName: input.repoConfig.repoName,
         token: "",
       },
@@ -235,6 +242,8 @@ export default function SettingsDialog({
                 value={input.repoConfig.baseBranch}
               />
             </label>
+
+            <RepoPathField />
 
             <label className="block space-y-1.5" htmlFor="project-webhook-url">
               <span className="font-medium text-xs">

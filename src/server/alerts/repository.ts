@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
   Detail,
   Item,
@@ -17,7 +16,6 @@ import {
   type StoredProjectRepoConfig,
 } from "@shared/types/project";
 import { asc, eq } from "drizzle-orm";
-import { app } from "electron";
 import { z } from "zod";
 import { getDb } from "@/server/db";
 import {
@@ -33,13 +31,16 @@ import {
   getGitlabAccessToken,
   getGitlabInstanceUrl,
 } from "@/server/gitlab/auth-service";
-import {
-  cloneManagedRepo,
-  updateManagedRemote,
-} from "@/server/projects/git-service";
+import { ensureManagedRepo } from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
 import { validateGitlabProject } from "@/server/projects/gitlab-service";
+import {
+  createProjectProgressSession,
+  getCreateProjectProgress,
+  setCreateProjectProgress,
+} from "@/server/projects/project-create-progress";
 import { createBackendProject } from "@/server/projects/remote-project-service";
+import { resolveManagedRepoPath } from "@/server/projects/repo-path-service";
 import type { DashboardData } from "@/types/dashboard";
 import {
   ackBackendAlerts,
@@ -66,7 +67,9 @@ const projectSchema = z.object({
   name: z.string().trim().min(1),
   repoConfig: z.object({
     baseBranch: z.string().trim().min(1),
+    managedRepoPath: z.string().trim().optional(),
     provider: z.enum(REQUEST_PROVIDER_VALUES),
+    repoId: z.string().trim().optional(),
     repoName: z.string().trim().min(1),
     token: z.string().trim(),
   }),
@@ -451,39 +454,6 @@ function toProjectRow(project: StoredProject, position: number): NewProjectRow {
   };
 }
 
-// 转项目入参
-function toProjectInput(input: ProjectInput) {
-  return {
-    aiConfig: {
-      apiKey: input.aiConfig.apiKey.trim(),
-      baseUrl: input.aiConfig.baseUrl.trim(),
-      model: input.aiConfig.model.trim(),
-    },
-    name: input.name.trim(),
-    repoConfig: {
-      baseBranch: input.repoConfig.baseBranch.trim(),
-      provider: input.repoConfig.provider,
-      repoId: input.repoConfig.repoId?.trim(),
-      repoName: input.repoConfig.repoName.trim(),
-      token: input.repoConfig.token.trim(),
-    },
-  } satisfies ProjectInput;
-}
-
-// AI配置
-function toAiConfig(config: ProjectAiConfig) {
-  return {
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    model: config.model,
-  } satisfies ProjectAiConfig;
-}
-
-// 托管目录
-function buildManagedRepoPath(projectId: string) {
-  return path.join(app.getPath("userData"), "managed-repos", projectId);
-}
-
 // 解析令牌
 function resolveGithubToken(token: string) {
   return token || getGithubAccessToken();
@@ -514,6 +484,7 @@ function toProjectConfig(config: StoredProjectRepoConfig) {
     instanceUrl: config.instanceUrl,
     managedRepoPath: config.managedRepoPath,
     provider: config.provider,
+    repoId: config.repoId,
     repoName: config.repoName,
   } satisfies Project["repoConfig"];
 }
@@ -559,20 +530,12 @@ function toItem(row: AlertRow): Item {
 
 // 转项目
 function toProject(row: ProjectRow): Project {
-  const project = toStoredProject(row);
+  const { repoConfig, ...project } = toStoredProject(row);
 
   return {
-    aiConfig: toAiConfig(project.aiConfig),
-    createdAt: project.createdAt,
-    id: project.id,
-    name: project.name,
-    repoConfig: toProjectConfig(project.repoConfig),
-    requestMap: project.requestMap,
-    updatedAt: project.updatedAt,
-    webhookEnabled: project.webhookEnabled,
-    webhookId: project.webhookId,
-    webhookUrl: project.webhookUrl,
-  };
+    ...project,
+    repoConfig: toProjectConfig(repoConfig),
+  } satisfies Project;
 }
 
 // 转存储项目
@@ -724,24 +687,26 @@ export async function validateProjectConnection(input: ProjectInput) {
   ensureSeeded();
   await delay(180);
 
-  const projectInput = toProjectInput(input);
-  const connection = await resolveProjectConnection(projectInput.repoConfig);
-  
-  if (projectInput.repoConfig.provider === "gitlab") {
+  const { repoConfig } = input;
+  const connection = await resolveProjectConnection(repoConfig);
+  const { repoName, baseBranch, repoId } = repoConfig;
+  const { token, instanceUrl } = connection;
+
+  if (repoConfig.provider === "gitlab") {
+    if (!repoId) {
+      throw new Error("GitLab repoId is required.");
+    }
+
     return validateGitlabProject(
-      projectInput.repoConfig.repoName,
-      projectInput.repoConfig.baseBranch,
-      connection.token,
-      connection.instanceUrl,
-      projectInput.repoConfig.repoId!
+      repoName,
+      baseBranch,
+      token,
+      instanceUrl,
+      repoId
     );
   }
 
-  return validateGithubProject(
-    projectInput.repoConfig.repoName,
-    projectInput.repoConfig.baseBranch,
-    connection.token
-  );
+  return validateGithubProject(repoName, baseBranch, token);
 }
 
 // 面板数据
@@ -820,26 +785,45 @@ export async function createProject(input: ProjectInput) {
 
   const db = getDb();
   const rows = listProjectRows();
-  // TODO：格式化输入，其实没什么用，可以删掉这个函数的
-  const projectInput = toProjectInput(input);
-  // TODO：这里重复了，也是可以删掉的
-  const connection = await resolveProjectConnection(projectInput.repoConfig);
-  // 验证。 容易在这里挂掉
-  const validated = await validateProjectConnection(projectInput);
-  const remoteProject = await createBackendProject(projectInput.name);
-  const storedProject = {
-    aiConfig: projectInput.aiConfig,
+  const { repoConfig } = input;
+  const connection = await resolveProjectConnection(repoConfig);
+  const { repoName, baseBranch, repoId } = repoConfig;
+  const { token, instanceUrl } = connection;
+  const gitlabRepoId = repoId ?? "";
+
+  if (repoConfig.provider === "gitlab" && !gitlabRepoId) {
+    throw new Error("GitLab repoId is required.");
+  }
+
+  const validated =
+    repoConfig.provider === "gitlab"
+      ? await validateGitlabProject(
+          repoName,
+          baseBranch,
+          token,
+          instanceUrl,
+          gitlabRepoId
+        )
+      : await validateGithubProject(repoName, baseBranch, token);
+
+  const remoteProject = await createBackendProject(input.name);
+  const nextProject = {
+    aiConfig: input.aiConfig,
     createdAt: remoteProject.createdAt,
     id: remoteProject.id,
     name: remoteProject.name,
     repoConfig: {
       baseBranch: validated.baseBranch,
       instanceUrl: validated.instanceUrl,
-      managedRepoPath: buildManagedRepoPath(remoteProject.id),
+      managedRepoPath: resolveManagedRepoPath({
+        provider: validated.provider,
+        repoName: validated.repoName,
+        repoPath: input.repoConfig.managedRepoPath,
+      }),
       provider: validated.provider,
-      repoId: projectInput.repoConfig.repoId, // 保存项目 ID
+      repoId,
       repoName: validated.repoName,
-      token: connection.token,
+      token,
     },
     requestMap: {},
     updatedAt: remoteProject.updatedAt,
@@ -849,13 +833,13 @@ export async function createProject(input: ProjectInput) {
   } satisfies StoredProject;
 
   try {
-    await cloneManagedRepo({
-      baseBranch: storedProject.repoConfig.baseBranch,
-      instanceUrl: storedProject.repoConfig.instanceUrl,
-      provider: storedProject.repoConfig.provider,
-      repoName: storedProject.repoConfig.repoName,
-      repoPath: storedProject.repoConfig.managedRepoPath,
-      token: storedProject.repoConfig.token,
+    await ensureManagedRepo({
+      baseBranch: nextProject.repoConfig.baseBranch,
+      instanceUrl: nextProject.repoConfig.instanceUrl,
+      provider: nextProject.repoConfig.provider,
+      repoName: nextProject.repoConfig.repoName,
+      repoPath: nextProject.repoConfig.managedRepoPath,
+      token: nextProject.repoConfig.token,
     });
   } catch (error) {
     throw new Error(
@@ -865,22 +849,125 @@ export async function createProject(input: ProjectInput) {
     );
   }
 
-  db.insert(projectsTable)
-    .values(toProjectRow(storedProject, rows.length))
-    .run();
+  db.insert(projectsTable).values(toProjectRow(nextProject, rows.length)).run();
+
+  const { repoConfig: storedRepoConfig, ...project } = nextProject;
 
   return {
-    aiConfig: storedProject.aiConfig,
-    createdAt: storedProject.createdAt,
-    id: storedProject.id,
-    name: storedProject.name,
-    repoConfig: toProjectConfig(storedProject.repoConfig),
-    requestMap: storedProject.requestMap,
-    updatedAt: storedProject.updatedAt,
-    webhookEnabled: storedProject.webhookEnabled,
-    webhookId: storedProject.webhookId,
-    webhookUrl: storedProject.webhookUrl,
+    ...project,
+    repoConfig: toProjectConfig(storedRepoConfig),
   } satisfies Project;
+}
+
+// 跑创建
+async function runCreateProjectSession(sessionId: string, input: ProjectInput) {
+  try {
+    await delay(120);
+    listProjectRows();
+    setCreateProjectProgress(sessionId, "validateProjectConnection");
+
+    const { repoConfig } = input;
+    const connection = await resolveProjectConnection(repoConfig);
+    const { repoName, baseBranch, repoId } = repoConfig;
+    const { token, instanceUrl } = connection;
+    const gitlabRepoId = repoId ?? "";
+
+    if (repoConfig.provider === "gitlab" && !gitlabRepoId) {
+      throw new Error("GitLab repoId is required.");
+    }
+
+    const validated =
+      repoConfig.provider === "gitlab"
+        ? await validateGitlabProject(
+            repoName,
+            baseBranch,
+            token,
+            instanceUrl,
+            gitlabRepoId
+          )
+        : await validateGithubProject(repoName, baseBranch, token);
+
+    setCreateProjectProgress(sessionId, "createBackendProject");
+    const remoteProject = await createBackendProject(input.name);
+    const nextProject = {
+      aiConfig: input.aiConfig,
+      createdAt: remoteProject.createdAt,
+      id: remoteProject.id,
+      name: remoteProject.name,
+      repoConfig: {
+        baseBranch: validated.baseBranch,
+        instanceUrl: validated.instanceUrl,
+        managedRepoPath: resolveManagedRepoPath({
+          provider: validated.provider,
+          repoName: validated.repoName,
+          repoPath: input.repoConfig.managedRepoPath,
+        }),
+        provider: validated.provider,
+        repoId,
+        repoName: validated.repoName,
+        token,
+      },
+      requestMap: {},
+      updatedAt: remoteProject.updatedAt,
+      webhookEnabled: remoteProject.webhookEnabled,
+      webhookId: remoteProject.webhookId,
+      webhookUrl: remoteProject.webhookUrl,
+    } satisfies StoredProject;
+
+    setCreateProjectProgress(sessionId, "cloneManagedRepo");
+    await ensureManagedRepo({
+      baseBranch: nextProject.repoConfig.baseBranch,
+      instanceUrl: nextProject.repoConfig.instanceUrl,
+      provider: nextProject.repoConfig.provider,
+      repoName: nextProject.repoConfig.repoName,
+      repoPath: nextProject.repoConfig.managedRepoPath,
+      token: nextProject.repoConfig.token,
+    });
+
+    setCreateProjectProgress(sessionId, "saveProject");
+    const rows = listProjectRows();
+
+    getDb()
+      .insert(projectsTable)
+      .values(toProjectRow(nextProject, rows.length))
+      .run();
+
+    const { repoConfig: storedRepoConfig, ...project } = nextProject;
+
+    setCreateProjectProgress(sessionId, "done", {
+      progress: 100,
+      project: {
+        ...project,
+        repoConfig: toProjectConfig(storedRepoConfig),
+      } satisfies Project,
+      status: "completed",
+    });
+  } catch (error) {
+    const current = getCreateProjectProgress(sessionId).step;
+
+    setCreateProjectProgress(sessionId, current, {
+      errorMessage:
+        error instanceof Error ? error.message : "Failed to create project.",
+      status: "failed",
+    });
+  }
+}
+
+// 启动创建
+export function startCreateProject(input: ProjectInput) {
+  ensureSeeded();
+
+  const sessionId = createProjectProgressSession();
+
+  runCreateProjectSession(sessionId, input).catch((error) => {
+    setCreateProjectProgress(sessionId, "listProjectRows", {
+      errorMessage:
+        error instanceof Error ? error.message : "Failed to create project.",
+      status: "failed",
+    });
+  });
+
+  return getCreateProjectProgress(sessionId);
 }
 
 // 更新项目
@@ -890,15 +977,15 @@ export async function updateProject(id: string, input: ProjectInput) {
 
   const row = getProjectRow(id);
   const currentProject = toStoredProject(row);
-  const projectInput = toProjectInput(input);
-  const nextToken =
-    projectInput.repoConfig.token || currentProject.repoConfig.token;
+  const { repoConfig } = input;
+  const repoId = repoConfig.repoId || currentProject.repoConfig.repoId;
+  const nextToken = repoConfig.token || currentProject.repoConfig.token;
 
-  if (projectInput.repoConfig.provider !== currentProject.repoConfig.provider) {
+  if (repoConfig.provider !== currentProject.repoConfig.provider) {
     throw new Error("Provider change is not supported yet.");
   }
 
-  if (projectInput.repoConfig.repoName !== currentProject.repoConfig.repoName) {
+  if (repoConfig.repoName !== currentProject.repoConfig.repoName) {
     throw new Error("Repository change is not supported yet.");
   }
 
@@ -908,38 +995,52 @@ export async function updateProject(id: string, input: ProjectInput) {
   });
 
   if (currentProject.repoConfig.provider === "gitlab") {
+    if (!repoId) {
+      throw new Error("GitLab repoId is required.");
+    }
+
     await validateGitlabProject(
-      projectInput.repoConfig.repoName,
-      projectInput.repoConfig.baseBranch,
+      repoConfig.repoName,
+      repoConfig.baseBranch,
       connection.token,
       connection.instanceUrl,
-      projectInput.repoConfig.repoId!
+      repoId
     );
   } else {
     await validateGithubProject(
-      projectInput.repoConfig.repoName,
-      projectInput.repoConfig.baseBranch,
+      repoConfig.repoName,
+      repoConfig.baseBranch,
       connection.token
     );
   }
 
-  if (currentProject.repoConfig.managedRepoPath) {
-    await updateManagedRemote({
+  const nextManagedRepoPath = resolveManagedRepoPath({
+    provider: currentProject.repoConfig.provider,
+    repoName: currentProject.repoConfig.repoName,
+    repoPath:
+      repoConfig.managedRepoPath || currentProject.repoConfig.managedRepoPath,
+  });
+
+  if (nextManagedRepoPath) {
+    await ensureManagedRepo({
+      baseBranch: repoConfig.baseBranch,
       instanceUrl: connection.instanceUrl,
       provider: currentProject.repoConfig.provider,
       repoName: currentProject.repoConfig.repoName,
-      repoPath: currentProject.repoConfig.managedRepoPath,
+      repoPath: nextManagedRepoPath,
       token: connection.token,
     });
   }
 
   return updateProjectRow(row, {
-    aiConfigJson: JSON.stringify(projectInput.aiConfig),
-    name: projectInput.name,
+    aiConfigJson: JSON.stringify(input.aiConfig),
+    name: input.name,
     repoConfigJson: JSON.stringify({
       ...currentProject.repoConfig,
-      baseBranch: projectInput.repoConfig.baseBranch,
+      baseBranch: repoConfig.baseBranch,
       instanceUrl: connection.instanceUrl,
+      managedRepoPath: nextManagedRepoPath,
+      repoId,
       token: connection.token,
     } satisfies StoredProjectRepoConfig),
     updatedAt: new Date().toISOString(),

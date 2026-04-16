@@ -3,7 +3,11 @@ import type {
   ItemStatus,
   LocalAlertSyncResult,
 } from "@shared/types/alert";
-import type { Project, ProjectInput } from "@shared/types/project";
+import type {
+  Project,
+  ProjectCreateProgress,
+  ProjectInput,
+} from "@shared/types/project";
 import { ipc } from "@/ipc/manager";
 import type { DashboardData } from "@/types/dashboard";
 import type {
@@ -232,6 +236,30 @@ export async function createProject(input: ProjectInput) {
   });
 
   return readJson<Project>(response);
+}
+
+// 启动创建
+export async function startCreateProject(input: ProjectInput) {
+  const url = await buildApiUrl("/projects/create/start");
+  const response = await fetch(url, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+
+  return readJson<ProjectCreateProgress>(response);
+}
+
+// 轮询创建
+export async function pollCreateProject(sessionId: string) {
+  const url = await buildApiUrl(`/projects/create/${sessionId}/poll`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<ProjectCreateProgress>(response);
 }
 
 // 更新项目

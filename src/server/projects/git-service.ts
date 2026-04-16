@@ -32,6 +32,8 @@ interface UpdateRemoteOptions {
   token: string;
 }
 
+type ManagedRepoOptions = CloneRepoOptions;
+
 // 跑 git
 function runGit(args: string[], options: GitRunOptions = {}) {
   return new Promise<string>((resolve, reject) => {
@@ -134,10 +136,41 @@ export async function cloneManagedRepo(options: CloneRepoOptions) {
   ]);
 }
 
+// 是否仓库
+async function isGitRepository(repoPath: string) {
+  try {
+    await runGit(["rev-parse", "--is-inside-work-tree"], {
+      cwd: repoPath,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // 更新远端
 export async function updateManagedRemote(options: UpdateRemoteOptions) {
   await ensureGit();
   await runGit(["remote", "set-url", "origin", buildRemoteUrl(options)], {
+    cwd: options.repoPath,
+  });
+}
+
+// 确保仓库
+export async function ensureManagedRepo(options: ManagedRepoOptions) {
+  if (!(await isGitRepository(options.repoPath))) {
+    await cloneManagedRepo(options);
+    return;
+  }
+
+  await updateManagedRemote(options);
+  await runGit(["fetch", "origin"], {
+    cwd: options.repoPath,
+  });
+  await runGit(["checkout", options.baseBranch], {
+    cwd: options.repoPath,
+  });
+  await runGit(["pull", "--ff-only", "origin", options.baseBranch], {
     cwd: options.repoPath,
   });
 }
