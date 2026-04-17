@@ -1,4 +1,5 @@
 import type {
+  Analysis,
   Detail,
   Item,
   ItemPriority,
@@ -42,6 +43,7 @@ import {
 import { createBackendProject } from "@/server/projects/remote-project-service";
 import { resolveManagedRepoPath } from "@/server/projects/repo-path-service";
 import type { DashboardData } from "@/types/dashboard";
+import { locateAlertCodeLocations } from "./analysis-service";
 import {
   ackBackendAlerts,
   listUnsyncedBackendAlerts,
@@ -603,7 +605,7 @@ function listAlertRows() {
 // 写单条
 function updateAlertRow(
   row: AlertRow,
-  patch: Partial<Pick<AlertRow, "status" | "updatedAt">>
+  patch: Partial<Pick<AlertRow, "detailJson" | "status" | "updatedAt">>
 ) {
   const db = getDb();
 
@@ -774,6 +776,32 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
 
   return updateAlertRow(getAlertRow(id), {
     status,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// 分析报警
+export async function analyzeAlert(id: string) {
+  ensureSeeded();
+  await delay(360);
+
+  const row = getAlertRow(id);
+  const item = toItem(row);
+  const project = toStoredProject(getProjectRow(item.projectId));
+  const codeLocations = await locateAlertCodeLocations({
+    item,
+    repoPath: project.repoConfig.managedRepoPath,
+  });
+  const analysis = {
+    ...item.detail.analysis,
+    codeLocations,
+  } satisfies Analysis;
+
+  return updateAlertRow(row, {
+    detailJson: stringifyJson({
+      ...item.detail,
+      analysis,
+    } satisfies Detail),
     updatedAt: new Date().toISOString(),
   });
 }

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import {
+  analyzeAlert,
   closeAlertRequest,
   createAlertRequest,
   getDashboardData,
@@ -62,6 +63,21 @@ alertsRouter.patch("/alerts/:id/status", async (context) => {
         message: toErrorMessage(error, "Failed to update alert."),
       },
       404
+    );
+  }
+});
+
+alertsRouter.post("/alerts/:id/analyze", async (context) => {
+  try {
+    const item = await analyzeAlert(context.req.param("id"));
+
+    return context.json(item);
+  } catch (error) {
+    return context.json(
+      {
+        message: toErrorMessage(error, "Failed to analyze alert."),
+      },
+      400
     );
   }
 });

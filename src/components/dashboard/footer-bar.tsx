@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { updateAlertStatus } from "@/api/alerts";
+import AnalysisAction from "@/components/dashboard/analysis-action";
 import RequestActions from "@/components/dashboard/request-actions";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -83,6 +84,7 @@ export default function FooterBar() {
   return (
     <div className="border-t px-6 py-4">
       <div className="flex gap-2">
+        <AnalysisAction />
         <RequestActions />
         <Button
           disabled={doneDisabled}

@@ -70,6 +70,7 @@ export interface ErrorInfo {
 // D. 再读取命中文件前后代码生成候选片段
 // E. 最后按匹配度排序返回候选位置
 export interface CodeLocation {
+  absolutePath?: string; // 绝对路径
   column?: number; // 列号
   filePath: string; // 文件
   line?: number; // 行号

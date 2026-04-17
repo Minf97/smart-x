@@ -115,6 +115,16 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   return readJson<Item>(response);
 }
 
+// 分析报警
+export async function analyzeAlert(id: string) {
+  const url = await buildApiUrl(`/alerts/${id}/analyze`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<Item>(response);
+}
+
 // 创建PR
 export async function createAlertRequest(id: string) {
   const url = await buildApiUrl(`/alerts/${id}/request`);

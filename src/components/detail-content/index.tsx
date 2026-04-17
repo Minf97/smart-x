@@ -2,6 +2,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAlertView } from "@/hooks/use-alerts";
 import DetailActivity from "./activity";
 import DetailAnalysis from "./analysis";
+import DetailLocation from "./location";
 import DetailRequest from "./request";
 import DetailStack from "./stack";
 import DetailSummary from "./summary";
@@ -20,6 +21,10 @@ export default function DetailContent() {
       <Separator />
 
       <DetailStack item={item} />
+
+      <Separator />
+
+      <DetailLocation item={item} />
 
       <Separator />
 
