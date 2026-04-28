@@ -105,6 +105,11 @@ export function getRootCause(item: Item) {
   return item.detail.analysis?.rootCause ?? "-";
 }
 
+// 影响文案
+export function getImpact(item: Item) {
+  return item.detail.analysis?.impact ?? "-";
+}
+
 // 修复摘要
 export function getFixSummary(item: Item) {
   return item.detail.analysis?.fixSuggestions?.[0]?.summary ?? "-";

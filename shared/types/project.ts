@@ -44,8 +44,8 @@ export interface ProjectAiConfig {
 export function getDefaultProjectAiConfig(): ProjectAiConfig {
   return {
     apiKey: "",
-    baseUrl: "",
-    model: "",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/coding/v3",
+    model: "ark-code-latest",
   };
 }
 

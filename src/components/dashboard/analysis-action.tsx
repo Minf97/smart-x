@@ -31,6 +31,10 @@ export default function AnalysisAction() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { currentProject, loading, selectedItem } = useAlertView();
+  const hasAiConfig =
+    (currentProject?.aiConfig.apiKey.trim().length ?? 0) > 0 &&
+    (currentProject?.aiConfig.baseUrl.trim().length ?? 0) > 0 &&
+    (currentProject?.aiConfig.model.trim().length ?? 0) > 0;
   const hasRepoPath =
     (currentProject?.repoConfig.managedRepoPath.trim().length ?? 0) > 0;
   const analyzeMutation = useMutation({
@@ -46,7 +50,18 @@ export default function AnalysisAction() {
     },
   });
   const disabled =
-    loading || !selectedItem || !hasRepoPath || analyzeMutation.isPending;
+    loading ||
+    !selectedItem ||
+    !hasAiConfig ||
+    !hasRepoPath ||
+    analyzeMutation.isPending;
+  let title = t("dashboard.analyzeRequiresAi");
+
+  if (hasAiConfig) {
+    title = hasRepoPath
+      ? t("dashboard.analyzeAlert")
+      : t("dashboard.analyzeRequiresRepo");
+  }
 
   function handleAnalyze() {
     if (!selectedItem) {
@@ -61,11 +76,7 @@ export default function AnalysisAction() {
       disabled={disabled}
       onClick={handleAnalyze}
       size="sm"
-      title={
-        hasRepoPath
-          ? t("dashboard.analyzeAlert")
-          : t("dashboard.analyzeRequiresRepo")
-      }
+      title={title}
       type="button"
     >
       {analyzeMutation.isPending ? (

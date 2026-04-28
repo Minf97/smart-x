@@ -28,6 +28,7 @@
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@hono/node-server": "^1.19.13",
     "@icons-pack/react-simple-icons": "^13.13.0",
+    "@mariozechner/pi-coding-agent": "^0.67.68",
     "@orpc/client": "^1.13.9",
     "@orpc/server": "^1.13.9",
     "@tailwindcss/vite": "^4.2.2",

@@ -6,7 +6,9 @@ import type {
 import { getGithubAccessToken } from "@/server/github/auth-service";
 import { getGitlabAccessToken } from "@/server/gitlab/auth-service";
 import {
+  commitAlertChanges,
   prepareAlertBranch,
+  pushAlertBranch,
   updateManagedRemote,
 } from "@/server/projects/git-service";
 import {
@@ -48,7 +50,37 @@ function buildRequestTitle(item: Item) {
 
 // 请求描述
 function buildRequestBody(item: Item) {
-  return [`Auto created from alert ${item.id}.`, "", item.title].join("\n");
+  const lines = [`Auto created from alert ${item.id}.`, "", item.title];
+  const analysis = item.detail.analysis;
+  const fixSummary = analysis?.fixSuggestions?.[0]?.summary?.trim();
+  const verification = analysis?.fixSuggestions?.[0]?.verification?.trim();
+
+  if (analysis?.rootCause?.trim()) {
+    lines.push("", "Root Cause", analysis.rootCause.trim());
+  }
+
+  if (analysis?.impact?.trim()) {
+    lines.push("", "Impact", analysis.impact.trim());
+  }
+
+  if (fixSummary) {
+    lines.push("", "Suggested Fix", fixSummary);
+  }
+
+  if (verification) {
+    lines.push("", "Verification", verification);
+  }
+
+  return lines.join("\n");
+}
+
+interface CreateRequestOptions {
+  // 分支创建后，允许调用方先在本地仓库写入真实代码改动。
+  onBranchReady?: (input: {
+    branchName: string;
+    item: Item;
+    repoPath: string;
+  }) => Promise<void>;
 }
 
 // 取平台令牌
@@ -67,7 +99,8 @@ function resolveProviderToken(config: StoredProjectRepoConfig) {
 // 创建态
 export async function createRequest(
   item: Item,
-  config: StoredProjectRepoConfig
+  config: StoredProjectRepoConfig,
+  options: CreateRequestOptions = {}
 ): Promise<CodeRequest> {
   const now = new Date().toISOString();
   const branchName = buildBranchName(item);
@@ -85,7 +118,22 @@ export async function createRequest(
   await prepareAlertBranch({
     baseBranch: config.baseBranch,
     branchName,
+    repoPath: config.managedRepoPath,
+  });
+
+  await options.onBranchReady?.({
+    branchName,
     item,
+    repoPath: config.managedRepoPath,
+  });
+
+  await commitAlertChanges({
+    allowEmpty: !options.onBranchReady,
+    item,
+    repoPath: config.managedRepoPath,
+  });
+  await pushAlertBranch({
+    branchName,
     repoPath: config.managedRepoPath,
   });
 

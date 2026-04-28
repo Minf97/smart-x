@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   getFixPatch,
   getFixSummary,
+  getImpact,
   getRootCause,
 } from "@/components/dashboard/helpers";
 
@@ -22,6 +23,11 @@ export default function DetailAnalysis({ item }: DetailAnalysisProps) {
             {t("dashboard.rootCause")}
           </h4>
           <p className="text-muted-foreground text-sm">{getRootCause(item)}</p>
+        </div>
+
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+          <h4 className="mb-2 font-medium text-sm">{t("dashboard.impact")}</h4>
+          <p className="text-muted-foreground text-sm">{getImpact(item)}</p>
         </div>
 
         <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">

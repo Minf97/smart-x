@@ -20,7 +20,6 @@ interface CloneRepoOptions {
 interface PrepareBranchOptions {
   baseBranch: string;
   branchName: string;
-  item: Item;
   repoPath: string;
 }
 
@@ -33,6 +32,17 @@ interface UpdateRemoteOptions {
 }
 
 type ManagedRepoOptions = CloneRepoOptions;
+
+interface CommitAlertChangesOptions {
+  allowEmpty?: boolean;
+  item: Item;
+  repoPath: string;
+}
+
+interface PushBranchOptions {
+  branchName: string;
+  repoPath: string;
+}
 
 // 跑 git
 function runGit(args: string[], options: GitRunOptions = {}) {
@@ -116,6 +126,13 @@ function buildCommitMessage(item: Item) {
   return `chore(alert): ${item.id} ${item.title}`;
 }
 
+// 工作区状态
+async function getWorkingTreeStatus(repoPath: string) {
+  return runGit(["status", "--short"], {
+    cwd: repoPath,
+  });
+}
+
 // 校验 git
 export async function ensureGit() {
   await runGit(["--version"]);
@@ -175,9 +192,19 @@ export async function ensureManagedRepo(options: ManagedRepoOptions) {
   });
 }
 
+// 校验工作区干净，避免覆盖掉用户还没提交的改动。
+export async function ensureCleanWorkingTree(repoPath: string) {
+  const status = await getWorkingTreeStatus(repoPath);
+
+  if (status.trim()) {
+    throw new Error("Managed repository has uncommitted changes.");
+  }
+}
+
 // 准备分支
 export async function prepareAlertBranch(options: PrepareBranchOptions) {
   await ensureGit();
+  await ensureCleanWorkingTree(options.repoPath);
   await runGit(["fetch", "origin"], {
     cwd: options.repoPath,
   });
@@ -190,6 +217,20 @@ export async function prepareAlertBranch(options: PrepareBranchOptions) {
   await runGit(["checkout", "-B", options.branchName], {
     cwd: options.repoPath,
   });
+}
+
+// 提交改动
+export async function commitAlertChanges(options: CommitAlertChangesOptions) {
+  await runGit(["add", "-A"], {
+    cwd: options.repoPath,
+  });
+
+  const status = await getWorkingTreeStatus(options.repoPath);
+
+  if (!options.allowEmpty && !status.trim()) {
+    throw new Error("No code changes were generated for this alert.");
+  }
+
   await runGit(
     [
       "-c",
@@ -197,7 +238,7 @@ export async function prepareAlertBranch(options: PrepareBranchOptions) {
       "-c",
       "user.email=alert-agent@local",
       "commit",
-      "--allow-empty",
+      ...(options.allowEmpty ? ["--allow-empty"] : []),
       "-m",
       buildCommitMessage(options.item),
     ],
@@ -205,6 +246,10 @@ export async function prepareAlertBranch(options: PrepareBranchOptions) {
       cwd: options.repoPath,
     }
   );
+}
+
+// 推分支
+export async function pushAlertBranch(options: PushBranchOptions) {
   await runGit(["push", "-u", "origin", options.branchName], {
     cwd: options.repoPath,
   });

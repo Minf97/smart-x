@@ -60,7 +60,24 @@ export default function RequestActions() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const updateProject = useProjectStore((state) => state.updateProject);
-  const { loading, selectedItem, selectedRequest: request } = useAlertView();
+  const {
+    currentProject,
+    loading,
+    selectedItem,
+    selectedRequest: request,
+  } = useAlertView();
+  const hasAiConfig =
+    (currentProject?.aiConfig.apiKey.trim().length ?? 0) > 0 &&
+    (currentProject?.aiConfig.baseUrl.trim().length ?? 0) > 0 &&
+    (currentProject?.aiConfig.model.trim().length ?? 0) > 0;
+  const hasRepoPath =
+    (currentProject?.repoConfig.managedRepoPath.trim().length ?? 0) > 0;
+  const hasAnalysis = !!(
+    selectedItem?.detail.analysis?.rootCause?.trim() ||
+    selectedItem?.detail.analysis?.impact?.trim() ||
+    selectedItem?.detail.analysis?.codeLocations?.length ||
+    selectedItem?.detail.analysis?.fixSuggestions?.length
+  );
   const requestMutation = useMutation({
     mutationFn: ({ action, id }: { action: RequestAction; id: string }) => {
       switch (action) {
@@ -84,7 +101,18 @@ export default function RequestActions() {
     },
   });
   const disabled = loading || !selectedItem || requestMutation.isPending;
+  const createDisabled =
+    disabled || !hasAiConfig || !hasRepoPath || !hasAnalysis;
   const pendingAction = requestMutation.variables?.action;
+  let createTitle = t("dashboard.createPrRequiresAi");
+
+  if (hasAiConfig) {
+    createTitle = hasRepoPath
+      ? hasAnalysis
+        ? t("dashboard.createPr")
+        : t("dashboard.createPrRequiresAnalysis")
+      : t("dashboard.analyzeRequiresRepo");
+  }
 
   // 发动作
   function handleRequestAction(action: RequestAction) {
@@ -110,9 +138,10 @@ export default function RequestActions() {
   if (!request) {
     return (
       <Button
-        disabled={disabled}
+        disabled={createDisabled}
         onClick={() => handleRequestAction("create")}
         size="sm"
+        title={createTitle}
       >
         {requestMutation.isPending && pendingAction === "create" && (
           <Spinner className="size-3" />

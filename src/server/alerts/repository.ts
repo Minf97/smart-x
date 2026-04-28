@@ -44,6 +44,7 @@ import { createBackendProject } from "@/server/projects/remote-project-service";
 import { resolveManagedRepoPath } from "@/server/projects/repo-path-service";
 import type { DashboardData } from "@/types/dashboard";
 import { locateAlertCodeLocations } from "./analysis-service";
+import { analyzeAlertWithPi, applyAlertFixWithPi } from "./pi-service";
 import {
   ackBackendAlerts,
   listUnsyncedBackendAlerts,
@@ -542,8 +543,16 @@ function toProject(row: ProjectRow): Project {
 
 // 转存储项目
 function toStoredProject(row: ProjectRow): StoredProject {
+  // 兼容旧项目历史数据里没有 baseUrl / model 的情况。
+  const aiConfig = parseJson<ProjectAiConfig>(row.aiConfigJson);
+  const defaultAiConfig = getDefaultProjectAiConfig();
+
   return {
-    aiConfig: parseJson<ProjectAiConfig>(row.aiConfigJson),
+    aiConfig: {
+      apiKey: aiConfig.apiKey ?? "",
+      baseUrl: aiConfig.baseUrl?.trim() || defaultAiConfig.baseUrl,
+      model: aiConfig.model?.trim() || defaultAiConfig.model,
+    },
     createdAt: row.createdAt,
     id: row.id,
     name: row.name,
@@ -662,6 +671,15 @@ function updateProjectRow(
     ...row,
     ...patch,
   });
+}
+
+function hasStoredAnalysis(analysis?: Analysis) {
+  return !!(
+    analysis?.rootCause?.trim() ||
+    analysis?.impact?.trim() ||
+    analysis?.codeLocations?.length ||
+    analysis?.fixSuggestions?.length
+  );
 }
 
 // 初始化种子
@@ -787,14 +805,28 @@ export async function analyzeAlert(id: string) {
 
   const row = getAlertRow(id);
   const item = toItem(row);
+
+  // 已经入库的分析结果默认直接复用，避免对同一条报警重复分析。
+  if (hasStoredAnalysis(item.detail.analysis)) {
+    return item;
+  }
+
   const project = toStoredProject(getProjectRow(item.projectId));
-  const codeLocations = await locateAlertCodeLocations({
+  // 先做一轮确定性的本地候选定位，再交给 pi 继续读仓库细化分析。
+  const candidateCodeLocations = await locateAlertCodeLocations({
+    item,
+    repoPath: project.repoConfig.managedRepoPath,
+  });
+
+  const nextAnalysis = await analyzeAlertWithPi({
+    aiConfig: project.aiConfig,
+    candidateCodeLocations,
     item,
     repoPath: project.repoConfig.managedRepoPath,
   });
   const analysis = {
     ...item.detail.analysis,
-    codeLocations,
+    ...nextAnalysis,
   } satisfies Analysis;
 
   return updateAlertRow(row, {
@@ -1089,10 +1121,22 @@ export async function createAlertRequest(id: string) {
     return toProject(row);
   }
 
+  if (!hasStoredAnalysis(item.detail.analysis)) {
+    throw new Error("Alert analysis is missing. Analyze alert first.");
+  }
+
   return updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
-      [item.id]: await createRequest(item, project.repoConfig),
+      [item.id]: await createRequest(item, project.repoConfig, {
+        onBranchReady: async () => {
+          await applyAlertFixWithPi({
+            aiConfig: project.aiConfig,
+            item,
+            repoPath: project.repoConfig.managedRepoPath,
+          });
+        },
+      }),
     }),
     updatedAt: new Date().toISOString(),
   });

@@ -92,7 +92,7 @@ alertsRouter.post("/alerts/:id/request", async (context) => {
       {
         message: toErrorMessage(error, "Failed to create PR/MR."),
       },
-      404
+      400
     );
   }
 });
