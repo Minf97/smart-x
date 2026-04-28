@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import type { AlertSyncAckInput } from "../../shared/types/alert";
+import { createRequestLogger } from "../../shared/hono-request-logger";
+import { createLogger } from "../../shared/logger";
 import { normalizePayload } from "./alert-normalizer";
 import { BackendDatabase } from "./db";
 import { hasDatabaseUrl } from "./db/client";
@@ -9,6 +11,7 @@ import { hasDatabaseUrl } from "./db/client";
 export const app = new Hono();
 const db = new BackendDatabase();
 const TRAILING_SLASH_RE = /\/$/;
+const logger = createLogger("backend-api");
 
 // 建项目
 const createProjectSchema = z.object({
@@ -37,8 +40,14 @@ function getRequestBaseUrl(url: string) {
 }
 
 app.use("*", cors());
+app.use("*", createRequestLogger("backend-api"));
 
 app.onError((error, context) => {
+  logger.error("request error", {
+    error,
+    method: context.req.method,
+    path: new URL(context.req.url).pathname,
+  });
   return context.json(
     {
       message: toMessage(error, "Internal server error."),

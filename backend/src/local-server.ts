@@ -1,8 +1,10 @@
 import { serve } from "@hono/node-server";
+import { createLogger } from "../../shared/logger";
 import app from "./app";
 import { DEFAULT_PORT } from "./db";
 
 const port = Number(process.env.BACKEND_PORT || DEFAULT_PORT);
+const logger = createLogger("backend-api");
 
 serve(
   {
@@ -11,6 +13,8 @@ serve(
     port,
   },
   () => {
-    console.log(`backend ready on http://localhost:${port}`);
+    logger.info("server started", {
+      origin: `http://localhost:${port}`,
+    });
   }
 );

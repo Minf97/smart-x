@@ -1,6 +1,8 @@
 import type { AlertListResponse, AlertSyncAckInput } from "@shared/types/alert";
+import { createLogger } from "@shared/logger";
 
 const TRAILING_SLASH_RE = /\/$/;
+const logger = createLogger("remote-alert-service");
 
 interface ErrorPayload {
   message?: string;
@@ -17,26 +19,71 @@ function getBackendBaseUrl() {
   return baseUrl.replace(TRAILING_SLASH_RE, "");
 }
 
+// 读取响应文本
+async function readResponseText(response: Response) {
+  try {
+    return await response.clone().text();
+  } catch {
+    return "";
+  }
+}
+
 // 解析接口错误
 async function readError(response: Response) {
-  const data = (await response.json().catch(() => null)) as ErrorPayload | null;
+  const text = await readResponseText(response);
 
-  if (data?.message) {
-    return data.message;
+  if (text) {
+    try {
+      const data = JSON.parse(text) as ErrorPayload;
+
+      if (data?.message) {
+        return data.message;
+      }
+    } catch {
+      return text;
+    }
+
+    return text;
   }
 
   return "Remote request failed.";
 }
 
-// 拉未同步报警
-export async function listUnsyncedBackendAlerts(projectId: string) {
-  const response = await fetch(
-    `${getBackendBaseUrl()}/projects/${projectId}/alerts`
-  );
+// 发后端请求
+async function requestBackend(path: string, init?: RequestInit) {
+  const method = init?.method || "GET";
+  const url = `${getBackendBaseUrl()}${path}`;
+
+  logger.info("request start", {
+    body: init?.body,
+    method,
+    url,
+  });
+
+  const response = await fetch(url, init);
 
   if (!response.ok) {
+    logger.warn("request failed", {
+      method,
+      response: await readResponseText(response),
+      status: response.status,
+      url,
+    });
     throw new Error(await readError(response));
   }
+
+  logger.info("request success", {
+    method,
+    status: response.status,
+    url,
+  });
+
+  return response;
+}
+
+// 拉未同步报警
+export async function listUnsyncedBackendAlerts(projectId: string) {
+  const response = await requestBackend(`/projects/${projectId}/alerts`);
 
   return (await response.json()) as AlertListResponse;
 }
@@ -46,18 +93,11 @@ export async function ackBackendAlerts(projectId: string, alertIds: string[]) {
   const input = {
     alertIds,
   } satisfies AlertSyncAckInput;
-  const response = await fetch(
-    `${getBackendBaseUrl()}/projects/${projectId}/alerts/sync-ack`,
-    {
-      body: JSON.stringify(input),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
+  await requestBackend(`/projects/${projectId}/alerts/sync-ack`, {
+    body: JSON.stringify(input),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
 }

@@ -25,7 +25,7 @@
   },
   "include": [
     "src/**/*",
-    "shared/types/**/*",
+    "shared/**/*.ts",
     "./package.json",
     "./forge.config.ts",
     "*.mts"
