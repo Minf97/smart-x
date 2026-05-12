@@ -39,12 +39,21 @@ export default function AnalysisAction() {
     (currentProject?.repoConfig.managedRepoPath.trim().length ?? 0) > 0;
   const analyzeMutation = useMutation({
     mutationFn: (id: string) => analyzeAlert(id),
-    onError(error) {
+    onMutate() {
+      return {
+        toastId: toast.loading(t("dashboard.analyzePending"), {
+          description: t("dashboard.analyzePendingHint"),
+        }),
+      };
+    },
+    onError(error, _id, context) {
+      toast.dismiss(context?.toastId);
       toast.error(
         error instanceof Error ? error.message : t("dashboard.analyzeFailed")
       );
     },
-    onSuccess(updatedAlert) {
+    onSuccess(updatedAlert, _id, context) {
+      toast.dismiss(context?.toastId);
       updateAlertCache(queryClient, updatedAlert);
       toast.success(t("dashboard.analyzeSuccess"));
     },
@@ -61,6 +70,10 @@ export default function AnalysisAction() {
     title = hasRepoPath
       ? t("dashboard.analyzeAlert")
       : t("dashboard.analyzeRequiresRepo");
+  }
+
+  if (analyzeMutation.isPending) {
+    title = t("dashboard.analyzePendingHint");
   }
 
   function handleAnalyze() {
@@ -84,7 +97,9 @@ export default function AnalysisAction() {
       ) : (
         <SearchCode className="size-3" />
       )}
-      {t("dashboard.analyzeAlert")}
+      {analyzeMutation.isPending
+        ? t("dashboard.analyzingAlert")
+        : t("dashboard.analyzeAlert")}
     </Button>
   );
 }

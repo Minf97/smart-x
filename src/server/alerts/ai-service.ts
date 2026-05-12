@@ -73,6 +73,7 @@ const ANALYSIS_SCHEMA = z.object({
 });
 const JSON_CODE_FENCE_RE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const VERSION_SUFFIX_RE = /\/v\d+$/u;
+const AI_REQUEST_TIMEOUT_MS = 20_000;
 
 // 取字符串内容
 function getMessageContent(data: ChatCompletionResponse) {
@@ -221,6 +222,23 @@ function readErrorMessage(text: string) {
   }
 }
 
+// 请求异常
+function toAiRequestError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError") {
+      return new Error("AI request timed out. Check AI base URL and network.");
+    }
+
+    if (error.message === "fetch failed") {
+      return new Error("AI service is unreachable. Check AI base URL and network.");
+    }
+
+    return error;
+  }
+
+  return new Error("AI request failed.");
+}
+
 // 接口地址
 function buildChatCompletionUrl(baseUrl: string) {
   const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/g, "");
@@ -280,26 +298,33 @@ export async function analyzeAlertWithAi({
   item,
 }: AnalyzeAlertWithAiInput): Promise<Analysis> {
   validateAiConfig(aiConfig);
-  const response = await fetch(buildChatCompletionUrl(aiConfig.baseUrl), {
-    body: JSON.stringify({
-      messages: [
-        {
-          content: buildSystemPrompt(),
-          role: "system",
-        },
-        {
-          content: buildUserPrompt(item, candidateCodeLocations),
-          role: "user",
-        },
-      ],
-      model: aiConfig.model.trim(),
-    }),
-    headers: {
-      Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(buildChatCompletionUrl(aiConfig.baseUrl), {
+      body: JSON.stringify({
+        messages: [
+          {
+            content: buildSystemPrompt(),
+            role: "system",
+          },
+          {
+            content: buildUserPrompt(item, candidateCodeLocations),
+            role: "user",
+          },
+        ],
+        model: aiConfig.model.trim(),
+      }),
+      headers: {
+        Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw toAiRequestError(error);
+  }
 
   const responseText = await response.text();
 

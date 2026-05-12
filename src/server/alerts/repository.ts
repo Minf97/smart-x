@@ -43,8 +43,9 @@ import {
 import { createBackendProject } from "@/server/projects/remote-project-service";
 import { resolveManagedRepoPath } from "@/server/projects/repo-path-service";
 import type { DashboardData } from "@/types/dashboard";
+import { analyzeAlertWithAi } from "./ai-service";
 import { locateAlertCodeLocations } from "./analysis-service";
-import { analyzeAlertWithPi, applyAlertFixWithPi } from "./pi-service";
+import { applyAlertFixWithPi } from "./pi-service";
 import {
   ackBackendAlerts,
   listUnsyncedBackendAlerts,
@@ -812,17 +813,17 @@ export async function analyzeAlert(id: string) {
   }
 
   const project = toStoredProject(getProjectRow(item.projectId));
-  // 先做一轮确定性的本地候选定位，再交给 pi 继续读仓库细化分析。
+  // 先做本地定位
   const candidateCodeLocations = await locateAlertCodeLocations({
     item,
     repoPath: project.repoConfig.managedRepoPath,
   });
 
-  const nextAnalysis = await analyzeAlertWithPi({
+  // 直连模型
+  const nextAnalysis = await analyzeAlertWithAi({
     aiConfig: project.aiConfig,
     candidateCodeLocations,
     item,
-    repoPath: project.repoConfig.managedRepoPath,
   });
   const analysis = {
     ...item.detail.analysis,
