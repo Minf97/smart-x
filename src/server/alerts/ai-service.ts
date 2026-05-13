@@ -73,7 +73,7 @@ const ANALYSIS_SCHEMA = z.object({
 });
 const JSON_CODE_FENCE_RE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const VERSION_SUFFIX_RE = /\/v\d+$/u;
-const AI_REQUEST_TIMEOUT_MS = 20_000;
+const AI_REQUEST_TIMEOUT_MS = 60_000;
 
 // 取字符串内容
 function getMessageContent(data: ChatCompletionResponse) {

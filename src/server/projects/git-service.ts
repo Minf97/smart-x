@@ -31,6 +31,10 @@ interface UpdateRemoteOptions {
   token: string;
 }
 
+interface SyncBaseBranchOptions extends UpdateRemoteOptions {
+  baseBranch: string;
+}
+
 type ManagedRepoOptions = CloneRepoOptions;
 
 interface CommitAlertChangesOptions {
@@ -133,6 +137,26 @@ async function getWorkingTreeStatus(repoPath: string) {
   });
 }
 
+// 校验路径
+function ensureRepoPath(repoPath: string) {
+  if (!repoPath.trim()) {
+    throw new Error("Local repository path is not configured.");
+  }
+}
+
+// 拉取基线
+async function pullBaseBranch(repoPath: string, baseBranch: string) {
+  await runGit(["fetch", "origin"], {
+    cwd: repoPath,
+  });
+  await runGit(["checkout", baseBranch], {
+    cwd: repoPath,
+  });
+  await runGit(["pull", "--rebase=false", "origin", baseBranch], {
+    cwd: repoPath,
+  });
+}
+
 // 校验 git
 export async function ensureGit() {
   await runGit(["--version"]);
@@ -141,6 +165,7 @@ export async function ensureGit() {
 // 拉取仓库
 export async function cloneManagedRepo(options: CloneRepoOptions) {
   await ensureGit();
+  ensureRepoPath(options.repoPath);
   await mkdir(path.dirname(options.repoPath), {
     recursive: true,
   });
@@ -155,6 +180,8 @@ export async function cloneManagedRepo(options: CloneRepoOptions) {
 
 // 是否仓库
 async function isGitRepository(repoPath: string) {
+  ensureRepoPath(repoPath);
+
   try {
     await runGit(["rev-parse", "--is-inside-work-tree"], {
       cwd: repoPath,
@@ -168,9 +195,17 @@ async function isGitRepository(repoPath: string) {
 // 更新远端
 export async function updateManagedRemote(options: UpdateRemoteOptions) {
   await ensureGit();
+  ensureRepoPath(options.repoPath);
   await runGit(["remote", "set-url", "origin", buildRemoteUrl(options)], {
     cwd: options.repoPath,
   });
+}
+
+// 同步基线
+export async function syncManagedRepoBaseBranch(options: SyncBaseBranchOptions) {
+  await updateManagedRemote(options);
+  await ensureCleanWorkingTree(options.repoPath);
+  await pullBaseBranch(options.repoPath, options.baseBranch);
 }
 
 // 确保仓库
@@ -181,19 +216,13 @@ export async function ensureManagedRepo(options: ManagedRepoOptions) {
   }
 
   await updateManagedRemote(options);
-  await runGit(["fetch", "origin"], {
-    cwd: options.repoPath,
-  });
-  await runGit(["checkout", options.baseBranch], {
-    cwd: options.repoPath,
-  });
-  await runGit(["pull", "--ff-only", "origin", options.baseBranch], {
-    cwd: options.repoPath,
-  });
+  await pullBaseBranch(options.repoPath, options.baseBranch);
 }
 
 // 校验工作区干净，避免覆盖掉用户还没提交的改动。
 export async function ensureCleanWorkingTree(repoPath: string) {
+  ensureRepoPath(repoPath);
+
   const status = await getWorkingTreeStatus(repoPath);
 
   if (status.trim()) {
@@ -205,15 +234,7 @@ export async function ensureCleanWorkingTree(repoPath: string) {
 export async function prepareAlertBranch(options: PrepareBranchOptions) {
   await ensureGit();
   await ensureCleanWorkingTree(options.repoPath);
-  await runGit(["fetch", "origin"], {
-    cwd: options.repoPath,
-  });
-  await runGit(["checkout", options.baseBranch], {
-    cwd: options.repoPath,
-  });
-  await runGit(["pull", "--ff-only", "origin", options.baseBranch], {
-    cwd: options.repoPath,
-  });
+  await pullBaseBranch(options.repoPath, options.baseBranch);
   await runGit(["checkout", "-B", options.branchName], {
     cwd: options.repoPath,
   });

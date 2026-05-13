@@ -32,7 +32,10 @@ import {
   getGitlabAccessToken,
   getGitlabInstanceUrl,
 } from "@/server/gitlab/auth-service";
-import { ensureManagedRepo } from "@/server/projects/git-service";
+import {
+  ensureManagedRepo,
+  syncManagedRepoBaseBranch,
+} from "@/server/projects/git-service";
 import { validateGithubProject } from "@/server/projects/github-service";
 import { validateGitlabProject } from "@/server/projects/gitlab-service";
 import {
@@ -813,7 +816,22 @@ export async function analyzeAlert(id: string) {
   }
 
   const project = toStoredProject(getProjectRow(item.projectId));
-  // 先做本地定位
+  const connection = await resolveProjectConnection({
+    provider: project.repoConfig.provider,
+    token: project.repoConfig.token,
+  });
+
+  // 先同步基线
+  await syncManagedRepoBaseBranch({
+    baseBranch: project.repoConfig.baseBranch,
+    instanceUrl: connection.instanceUrl,
+    provider: project.repoConfig.provider,
+    repoName: project.repoConfig.repoName,
+    repoPath: project.repoConfig.managedRepoPath,
+    token: connection.token,
+  });
+
+  // 再做本地定位
   const candidateCodeLocations = await locateAlertCodeLocations({
     item,
     repoPath: project.repoConfig.managedRepoPath,
