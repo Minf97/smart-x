@@ -34,8 +34,7 @@ User Project 上报 Alert
 当前断点：
 
 - User Project 只有 webhook 合约，没有 SDK / 框架接入模板，接入成本高。
-- Alert 状态和 Code Request 状态没有形成自动联动，例如创建 Code Request 后未自动进入 `in_review`。
-- Feedback Signal 只体现在本地状态变化，没有结构化沉淀为过滤规则或修复偏好。
+- Feedback Signal 已经在本地结构化记录，但还没有同步到 Remote Backend。
 - Remote Backend 暂无用户鉴权，只适合 MVP 链路验证。
 - Alert Group 目前只作为分组键，缺少同类报警复用 Analysis / 过滤噪音的策略。
 
@@ -74,11 +73,13 @@ User Project 上报 Alert
 - 创建 Code Request 成功后，状态自动进入 `in_review`。
 - 合并 Code Request 后，Alert 状态自动进入 `done`。
 - 关闭 Code Request 后，Alert 状态保持可人工处理，不自动吞掉。
+- Code Request 创建过程能看到当前进度，失败时能定位到创建阶段。
 
 ### Phase 2：沉淀 Feedback Signal
 
-- 用户标记 `dismiss` / `duplicate` 时，记录原因类型。
-- 同一 Alert Group 再次出现时，优先展示历史处理结论。
+- 用户标记 `done` / `dismiss` / `duplicate` 时，记录 Feedback Signal。
+- 用户合并 / 关闭 Code Request 时，记录 Feedback Signal。
+- 同一 Alert Group 再次出现时，展示本地历史处理结论。
 - 对明显噪音类 Alert 给出“自动忽略建议”，但仍保留原始记录。
 - Analysis 失败或 Code Request 无改动时，保留失败原因供下一次优化 prompt / 检索策略。
 
@@ -189,10 +190,11 @@ Code Request 创建阶段不应重新猜测报警上下文，而应优先复用 
 - `createRequest` 会提交、push 并创建 GitHub PR / GitLab MR。
 - `createAlertRequest` 成功后会把 Alert 状态更新为 `in_review`。
 - `mergeAlertRequest` 成功后会把 Alert 状态更新为 `done`。
+- `startCreateAlertRequest` 会暴露创建进度，区分读取 Alert、同步分支、修复、提交和创建远端 PR/MR。
 
 当前缺口：
 
-- Code Request 创建过程没有独立进度状态，失败时只能看到最终错误。
+- 创建进度只保存在当前本地会话里，应用重启后不会恢复未完成会话。
 
 ## 7. 数据闭环
 
@@ -209,6 +211,13 @@ Feedback Signal 第一版不需要复杂模型，先记录：
 - `action`: `done | dismiss | duplicate | close_request | merge_request`
 - `reason`: 可选短文本或固定枚举
 - `createdAt`
+
+当前代码已经覆盖：
+
+- 本地 SQLite 新增 `feedback_signals` 表。
+- 用户手动标记 `done` / `dismiss` / `duplicate` 时写入反馈。
+- 合并 / 关闭 Code Request 时写入 `merge_request` / `close_request` 反馈。
+- Dashboard 返回同组 Feedback Signal，并在处理记录里展示。
 
 这些数据后续用于：
 
@@ -233,13 +242,11 @@ Phase 1 只要求 1-6；第 7 条是 Phase 2 的验收点。
 
 ## 9. 下一步代码入口
 
-优先补三处最小实现：
+后续优先补两处最小实现：
 
 - `src/server/alerts/repository.ts`
-  - 新增 Code Request 创建过程的进度状态，区分同步分支、修复、提交、创建 PR/MR。
-- `src/server/alerts/repository.ts`
-  - 新增最小 Feedback Signal 本地存储，先不改 Remote Backend。
+  - 后续把 Feedback Signal 同步到 Remote Backend。
 - `docs/`
   - 新增 User Project webhook 接入示例，覆盖浏览器端和 Node 服务端。
 
-这三处完成后，主链路从“能点功能”变成“状态和反馈能闭环”。
+这些完成后，主链路从“本地可演示闭环”进入“可复用历史信号”的阶段。

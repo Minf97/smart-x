@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type {
   Analysis,
   Detail,
+  FeedbackSignal,
+  FeedbackSignalAction,
   Item,
   ItemPriority,
   ItemStatus,
@@ -22,7 +25,10 @@ import { getDb } from "@/server/db";
 import {
   type AlertRow,
   alertsTable,
+  type FeedbackSignalRow,
+  feedbackSignalsTable,
   type NewAlertRow,
+  type NewFeedbackSignalRow,
   type NewProjectRow,
   type ProjectRow,
   projectsTable,
@@ -53,11 +59,22 @@ import {
   ackBackendAlerts,
   listUnsyncedBackendAlerts,
 } from "./remote-alert-service";
+import {
+  createCodeRequestProgressSession,
+  getCodeRequestProgress,
+  setCodeRequestProgress,
+} from "./request-progress";
 import { closeRequest, createRequest, mergeRequest } from "./request-service";
 
 interface StoredProject extends Omit<Project, "repoConfig"> {
   repoConfig: StoredProjectRepoConfig;
 }
+
+const STATUS_FEEDBACK_ACTIONS: Partial<Record<ItemStatus, FeedbackSignalAction>> = {
+  dismiss: "dismiss",
+  done: "done",
+  duplicate: "duplicate",
+};
 
 // 状态校验
 export const updateStatusSchema = z.object({
@@ -461,6 +478,22 @@ function toProjectRow(project: StoredProject, position: number): NewProjectRow {
   };
 }
 
+// 转反馈行
+function toFeedbackSignalRow(
+  item: Item,
+  action: FeedbackSignalAction,
+  reason: string | null = null
+): NewFeedbackSignalRow {
+  return {
+    action,
+    alertId: item.id,
+    createdAt: new Date().toISOString(),
+    groupKey: item.groupKey,
+    id: randomUUID(),
+    reason,
+  };
+}
+
 // 解析令牌
 function resolveGithubToken(token: string) {
   return token || getGithubAccessToken();
@@ -532,6 +565,35 @@ function toItem(row: AlertRow): Item {
     syncedAt: row.syncedAt,
     title: row.title,
     updatedAt: row.updatedAt,
+  };
+}
+
+// 转反馈
+function toFeedbackSignal(row: FeedbackSignalRow): FeedbackSignal {
+  return {
+    action: row.action,
+    alertId: row.alertId,
+    createdAt: row.createdAt,
+    groupKey: row.groupKey,
+    id: row.id,
+    reason: row.reason,
+  };
+}
+
+// 拼反馈
+function toItemWithFeedback(
+  row: AlertRow,
+  signalsByGroup: Map<string, FeedbackSignal[]>
+): Item {
+  const item = toItem(row);
+  const feedbackSignals = signalsByGroup.get(item.groupKey) ?? [];
+
+  return {
+    ...item,
+    detail: {
+      ...item.detail,
+      feedbackSignals,
+    },
   };
 }
 
@@ -615,6 +677,17 @@ function listAlertRows() {
   return db.select().from(alertsTable).orderBy(asc(alertsTable.position)).all();
 }
 
+// 查反馈列
+function listFeedbackSignalRows() {
+  const db = getDb();
+
+  return db
+    .select()
+    .from(feedbackSignalsTable)
+    .orderBy(asc(feedbackSignalsTable.createdAt))
+    .all();
+}
+
 // 写单条
 function updateAlertRow(
   row: AlertRow,
@@ -628,6 +701,41 @@ function updateAlertRow(
     ...row,
     ...patch,
   });
+}
+
+// 写反馈
+function writeFeedbackSignal(
+  item: Item,
+  action: FeedbackSignalAction,
+  reason: string | null = null
+) {
+  const row = toFeedbackSignalRow(item, action, reason);
+
+  getDb().insert(feedbackSignalsTable).values(row).run();
+
+  return toFeedbackSignal({
+    ...row,
+    reason: row.reason ?? null,
+  });
+}
+
+// 取状态反馈
+function getStatusFeedbackAction(status: ItemStatus) {
+  return STATUS_FEEDBACK_ACTIONS[status] ?? null;
+}
+
+// 按组归集
+function groupFeedbackSignals(rows: FeedbackSignalRow[]) {
+  const signalsByGroup = new Map<string, FeedbackSignal[]>();
+
+  for (const row of rows) {
+    const signal = toFeedbackSignal(row);
+    const signals = signalsByGroup.get(signal.groupKey) ?? [];
+
+    signalsByGroup.set(signal.groupKey, [...signals, signal]);
+  }
+
+  return signalsByGroup;
 }
 
 // 写远端报警
@@ -740,9 +848,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const alertRows = listAlertRows();
   const projectRows = listProjectRows();
+  const feedbackRows = listFeedbackSignalRows();
+  const signalsByGroup = groupFeedbackSignals(feedbackRows);
 
   return {
-    alerts: alertRows.map(toItem),
+    alerts: alertRows.map((row) => toItemWithFeedback(row, signalsByGroup)),
     projects: projectRows.map(toProject),
   };
 }
@@ -796,10 +906,19 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   ensureSeeded();
   await delay(360);
 
-  return updateAlertRow(getAlertRow(id), {
+  const row = getAlertRow(id);
+  const item = toItem(row);
+  const updatedItem = updateAlertRow(row, {
     status,
     updatedAt: new Date().toISOString(),
   });
+  const feedbackAction = getStatusFeedbackAction(status);
+
+  if (feedbackAction) {
+    writeFeedbackSignal(item, feedbackAction);
+  }
+
+  return updatedItem;
 }
 
 // 取分析态
@@ -1146,8 +1265,15 @@ export async function updateProject(id: string, input: ProjectInput) {
   });
 }
 
+interface CreateAlertRequestOptions {
+  sessionId?: string;
+}
+
 // 创建PR
-export async function createAlertRequest(id: string) {
+export async function createAlertRequest(
+  id: string,
+  options: CreateAlertRequestOptions = {}
+) {
   ensureSeeded();
   await delay(480);
 
@@ -1182,6 +1308,11 @@ export async function createAlertRequest(id: string) {
             repoPath: project.repoConfig.managedRepoPath,
           });
         },
+        onProgress: async (step) => {
+          if (options.sessionId) {
+            setCodeRequestProgress(options.sessionId, step);
+          }
+        },
       }),
     }),
     updatedAt: new Date().toISOString(),
@@ -1193,6 +1324,51 @@ export async function createAlertRequest(id: string) {
   });
 
   return updatedProject;
+}
+
+// 跑建请求
+async function runCreateAlertRequestSession(sessionId: string, id: string) {
+  try {
+    const project = await createAlertRequest(id, {
+      sessionId,
+    });
+
+    setCodeRequestProgress(sessionId, "done", {
+      progress: 100,
+      project,
+      status: "completed",
+    });
+  } catch (error) {
+    const current = getCodeRequestProgress(sessionId).step;
+
+    setCodeRequestProgress(sessionId, current, {
+      errorMessage:
+        error instanceof Error ? error.message : "Failed to create PR/MR.",
+      status: "failed",
+    });
+  }
+}
+
+// 启动建请求
+export function startCreateAlertRequest(id: string) {
+  ensureSeeded();
+
+  const sessionId = createCodeRequestProgressSession();
+
+  runCreateAlertRequestSession(sessionId, id).catch((error) => {
+    setCodeRequestProgress(sessionId, "loadAlert", {
+      errorMessage:
+        error instanceof Error ? error.message : "Failed to create PR/MR.",
+      status: "failed",
+    });
+  });
+
+  return getCodeRequestProgress(sessionId);
+}
+
+// 查建请求
+export function getCreateAlertRequestProgress(sessionId: string) {
+  return getCodeRequestProgress(sessionId);
 }
 
 // 合并PR
@@ -1215,6 +1391,7 @@ export async function mergeAlertRequest(id: string) {
         status: "done",
         updatedAt: new Date().toISOString(),
       });
+      writeFeedbackSignal(item, "merge_request");
     }
 
     return toProject(row);
@@ -1232,6 +1409,7 @@ export async function mergeAlertRequest(id: string) {
     status: "done",
     updatedAt: new Date().toISOString(),
   });
+  writeFeedbackSignal(item, "merge_request");
 
   return updatedProject;
 }
@@ -1254,11 +1432,15 @@ export async function closeAlertRequest(id: string) {
     return toProject(row);
   }
 
-  return updateProjectRow(row, {
+  const updatedProject = updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
       [item.id]: await closeRequest(request, project.repoConfig),
     }),
     updatedAt: new Date().toISOString(),
   });
+
+  writeFeedbackSignal(item, "close_request");
+
+  return updatedProject;
 }

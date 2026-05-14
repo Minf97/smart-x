@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
 import {
   alertsTable,
+  feedbackSignalsTable,
   githubAuthTable,
   gitlabAuthTable,
   projectsTable,
@@ -14,6 +15,7 @@ function createDb(connection: Database.Database) {
   return drizzle(connection, {
     schema: {
       alertsTable,
+      feedbackSignalsTable,
       githubAuthTable,
       gitlabAuthTable,
       projectsTable,
@@ -97,6 +99,15 @@ function getSchemaSql() {
       login TEXT NOT NULL,
       name TEXT NOT NULL,
       avatar_url TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS feedback_signals (
+      id TEXT PRIMARY KEY NOT NULL,
+      alert_id TEXT NOT NULL,
+      group_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL
     );
   `;
 }

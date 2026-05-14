@@ -1,12 +1,17 @@
-import type { Project } from "@shared/types/project";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+  CodeRequestCreateProgress,
+  Project,
+} from "@shared/types/project";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { openExternalLink } from "@/actions/shell";
 import {
   closeAlertRequest,
-  createAlertRequest,
   mergeAlertRequest,
+  pollCreateAlertRequest,
+  startCreateAlertRequest,
 } from "@/api/alerts";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -16,6 +21,10 @@ import type { DashboardData } from "@/types/dashboard";
 import { updateAlertStatusInDashboard } from "./alert-cache";
 
 type RequestAction = "close" | "create" | "merge";
+type RemoteRequestAction = Exclude<RequestAction, "create">;
+
+const CREATE_REQUEST_QUERY_KEY = ["alert-request-create"] as const;
+const CREATE_REQUEST_TOAST_ID = "alert-request-create";
 
 // 提示键
 function getRequestToastKey(action: RequestAction) {
@@ -36,6 +45,28 @@ function getRequestToastKey(action: RequestAction) {
         success: "dashboard.createPrSuccess",
       } as const;
   }
+}
+
+// 步骤文案
+function getCreateRequestStepText(
+  step: CodeRequestCreateProgress["step"],
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  const stepMap = {
+    applyFix: t("dashboard.requestCreateStepApplyFix"),
+    commitChanges: t("dashboard.requestCreateStepCommitChanges"),
+    createRemoteRequest: t("dashboard.requestCreateStepCreateRemoteRequest"),
+    done: t("dashboard.requestCreateStepDone"),
+    loadAlert: t("dashboard.requestCreateStepLoadAlert"),
+    syncBranch: t("dashboard.requestCreateStepSyncBranch"),
+  } as const satisfies Record<CodeRequestCreateProgress["step"], string>;
+
+  return stepMap[step];
+}
+
+// 是否创建中
+function isPendingCreateProgress(progress?: CodeRequestCreateProgress | null) {
+  return progress?.status === "pending";
 }
 
 // 写项目
@@ -72,6 +103,10 @@ export default function RequestActions() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const updateProject = useProjectStore((state) => state.updateProject);
+  const [createProgress, setCreateProgress] =
+    useState<CodeRequestCreateProgress | null>(null);
+  const [createAlertId, setCreateAlertId] = useState<string | null>(null);
+  const [createSessionId, setCreateSessionId] = useState<string | null>(null);
   const {
     currentProject,
     loading,
@@ -90,15 +125,53 @@ export default function RequestActions() {
     selectedItem?.detail.analysis?.codeLocations?.length ||
     selectedItem?.detail.analysis?.fixSuggestions?.length
   );
+  const pollCreateQuery = useQuery({
+    enabled: !!createSessionId,
+    queryFn: () => {
+      if (!createSessionId) {
+        throw new Error("PR/MR creation session is not ready.");
+      }
+
+      return pollCreateAlertRequest(createSessionId);
+    },
+    queryKey: [...CREATE_REQUEST_QUERY_KEY, createSessionId],
+    refetchInterval(query) {
+      if (query.state.data?.status !== "pending") {
+        return false;
+      }
+
+      return 500;
+    },
+    retry: false,
+  });
+  const activeCreateProgress = pollCreateQuery.data ?? createProgress;
+  const createRequestMutation = useMutation({
+    mutationFn: startCreateAlertRequest,
+    onError(error) {
+      setCreateAlertId(null);
+      setCreateProgress(null);
+      setCreateSessionId(null);
+      toast.error(
+        error instanceof Error ? error.message : t("dashboard.createPrFailed")
+      );
+    },
+    onSuccess(progress, alertId) {
+      setCreateAlertId(alertId);
+      setCreateProgress(progress);
+      setCreateSessionId(progress.sessionId);
+      toast.loading(t("dashboard.createPrPending"), {
+        description: getCreateRequestStepText(progress.step, t),
+        id: CREATE_REQUEST_TOAST_ID,
+      });
+    },
+  });
   const requestMutation = useMutation({
-    mutationFn: ({ action, id }: { action: RequestAction; id: string }) => {
+    mutationFn: ({ action, id }: { action: RemoteRequestAction; id: string }) => {
       switch (action) {
         case "merge":
           return mergeAlertRequest(id);
         case "close":
           return closeAlertRequest(id);
-        default:
-          return createAlertRequest(id);
       }
     },
     onError(_, variables) {
@@ -108,9 +181,6 @@ export default function RequestActions() {
     onSuccess(updatedProject, variables) {
       const toastKey = getRequestToastKey(variables.action);
       updateProjectCache(queryClient, updatedProject);
-      if (variables.action === "create") {
-        updateAlertStatusCache(queryClient, variables.id, "in_review");
-      }
       if (variables.action === "merge") {
         updateAlertStatusCache(queryClient, variables.id, "done");
       }
@@ -118,7 +188,11 @@ export default function RequestActions() {
       toast.success(t(toastKey.success));
     },
   });
-  const disabled = loading || !selectedItem || requestMutation.isPending;
+  const isCreatingRequest =
+    createRequestMutation.isPending ||
+    isPendingCreateProgress(activeCreateProgress);
+  const disabled =
+    loading || !selectedItem || requestMutation.isPending || isCreatingRequest;
   const createDisabled =
     disabled || !hasAiConfig || !hasRepoPath || !hasAnalysis;
   const pendingAction = requestMutation.variables?.action;
@@ -132,9 +206,66 @@ export default function RequestActions() {
       : t("dashboard.analyzeRequiresRepo");
   }
 
+  useEffect(() => {
+    const progress = pollCreateQuery.data;
+
+    if (!progress) {
+      return;
+    }
+
+    setCreateProgress(progress);
+
+    if (progress.status === "pending") {
+      toast.loading(t("dashboard.createPrPending"), {
+        description: getCreateRequestStepText(progress.step, t),
+        id: CREATE_REQUEST_TOAST_ID,
+      });
+      return;
+    }
+
+    toast.dismiss(CREATE_REQUEST_TOAST_ID);
+    setCreateAlertId(null);
+    setCreateSessionId(null);
+
+    if (progress.status === "failed") {
+      toast.error(progress.errorMessage ?? t("dashboard.createPrFailed"));
+      return;
+    }
+
+    if (progress.project && createAlertId) {
+      updateProjectCache(queryClient, progress.project);
+      updateAlertStatusCache(queryClient, createAlertId, "in_review");
+      updateProject(progress.project);
+    }
+
+    toast.success(t("dashboard.createPrSuccess"));
+  }, [createAlertId, pollCreateQuery.data, queryClient, t, updateProject]);
+
+  useEffect(() => {
+    if (!pollCreateQuery.error) {
+      return;
+    }
+
+    toast.dismiss(CREATE_REQUEST_TOAST_ID);
+    setCreateAlertId(null);
+    setCreateProgress(null);
+    setCreateSessionId(null);
+    toast.error(
+      pollCreateQuery.error instanceof Error
+        ? pollCreateQuery.error.message
+        : t("dashboard.createPrFailed")
+    );
+  }, [pollCreateQuery.error, t]);
+
   // 发动作
   function handleRequestAction(action: RequestAction) {
     if (!selectedItem) {
+      return;
+    }
+
+    if (action === "create") {
+      setCreateAlertId(selectedItem.id);
+      createRequestMutation.mutate(selectedItem.id);
       return;
     }
 
@@ -161,7 +292,7 @@ export default function RequestActions() {
         size="sm"
         title={createTitle}
       >
-        {requestMutation.isPending && pendingAction === "create" && (
+        {isCreatingRequest && (
           <Spinner className="size-3" />
         )}
         {t("dashboard.createPr")}

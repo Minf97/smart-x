@@ -93,6 +93,29 @@ export interface FixSuggestion {
   verification?: string; // 验证
 }
 
+// 反馈枚举
+export const FEEDBACK_SIGNAL_ACTION_VALUES = [
+  "done",
+  "dismiss",
+  "duplicate",
+  "close_request",
+  "merge_request",
+] as const;
+
+// 反馈类型
+export type FeedbackSignalAction =
+  (typeof FEEDBACK_SIGNAL_ACTION_VALUES)[number];
+
+// 反馈信号
+export interface FeedbackSignal {
+  action: FeedbackSignalAction; // 动作
+  alertId: string; // 报警
+  createdAt: string; // 创建
+  groupKey: string; // 分组
+  id: string; // 主键
+  reason: string | null; // 原因
+}
+
 // 分析结果
 export interface Analysis {
   // 实现:
@@ -127,6 +150,7 @@ export interface Analysis {
 export interface Detail {
   analysis?: Analysis; // 分析
   error: ErrorInfo; // 错误
+  feedbackSignals?: FeedbackSignal[]; // 反馈
   summary: Summary; // 概要
 }
 

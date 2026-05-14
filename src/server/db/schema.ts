@@ -1,4 +1,8 @@
-import type { ItemPriority, ItemStatus } from "@shared/types/alert";
+import type {
+  FeedbackSignalAction,
+  ItemPriority,
+  ItemStatus,
+} from "@shared/types/alert";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // 认证表
@@ -65,8 +69,20 @@ export const alertsTable = sqliteTable("alerts", {
   updatedAt: text("updated_at").notNull(),
 });
 
+// 反馈表
+export const feedbackSignalsTable = sqliteTable("feedback_signals", {
+  action: text("action").$type<FeedbackSignalAction>().notNull(),
+  alertId: text("alert_id").notNull(),
+  createdAt: text("created_at").notNull(),
+  groupKey: text("group_key").notNull(),
+  id: text("id").primaryKey(),
+  reason: text("reason"),
+});
+
 export type AlertRow = typeof alertsTable.$inferSelect;
+export type FeedbackSignalRow = typeof feedbackSignalsTable.$inferSelect;
 export type NewAlertRow = typeof alertsTable.$inferInsert;
+export type NewFeedbackSignalRow = typeof feedbackSignalsTable.$inferInsert;
 export type GithubAuthRow = typeof githubAuthTable.$inferSelect;
 export type NewGithubAuthRow = typeof githubAuthTable.$inferInsert;
 export type GitlabAuthRow = typeof gitlabAuthTable.$inferSelect;

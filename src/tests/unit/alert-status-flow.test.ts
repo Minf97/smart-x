@@ -16,11 +16,12 @@ type WhereCondition = {
 
 type TableRow = Record<string, unknown> & {
   id: string;
-  position: number;
+  position?: number;
 };
 
 type FakeDbState = {
   alerts: TableRow[];
+  feedbackSignals: TableRow[];
   projects: TableRow[];
 };
 
@@ -73,6 +74,7 @@ vi.mock("@/server/alerts/request-service", () => requestMocks);
 function createFakeDb() {
   const state: FakeDbState = {
     alerts: [],
+    feedbackSignals: [],
     projects: [],
   };
 
@@ -99,6 +101,10 @@ function createFakeDb() {
 
     if (tableName === "projects") {
       return state.projects;
+    }
+
+    if (tableName === "feedback_signals") {
+      return state.feedbackSignals;
     }
 
     throw new Error(`Unknown table: ${tableName}`);
@@ -277,6 +283,24 @@ async function findAlert(
   return alert;
 }
 
+// 等进度
+async function waitForCreateProgress(
+  repository: typeof AlertsRepository,
+  sessionId: string
+) {
+  for (let index = 0; index < 50; index += 1) {
+    const progress = repository.getCreateAlertRequestProgress(sessionId);
+
+    if (progress.status !== "pending") {
+      return progress;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error("Create request progress did not finish.");
+}
+
 describe("alert status flow", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -342,7 +366,69 @@ describe("alert status flow", () => {
     const stored = await findAlert(repository, "ENG-2498");
 
     expect(stored.status).toBe("done");
+    expect(stored.detail.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "merge_request",
+          alertId: "ENG-2498",
+          groupKey: stored.groupKey,
+          reason: null,
+        }),
+      ])
+    );
     expect(project.requestMap["ENG-2498"]?.state).toBe("merged");
     expect(requestMocks.mergeRequest).toHaveBeenCalledTimes(1);
+  });
+
+  test("records dismiss feedback when alert is dismissed", async () => {
+    const repository = await loadRepository();
+
+    await repository.updateAlertStatus("ENG-2380", "dismiss");
+    const stored = await findAlert(repository, "ENG-2380");
+
+    expect(stored.status).toBe("dismiss");
+    expect(stored.detail.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "dismiss",
+          alertId: "ENG-2380",
+          groupKey: stored.groupKey,
+          reason: null,
+        }),
+      ])
+    );
+  });
+
+  test("exposes create request progress session", async () => {
+    requestMocks.createRequest.mockImplementation(
+      async (
+        item: Item,
+        _config: unknown,
+        options?: {
+          onProgress?: (step: string) => void | Promise<void>;
+        }
+      ) => {
+        await options?.onProgress?.("syncBranch");
+        await options?.onProgress?.("applyFix");
+        await options?.onProgress?.("commitChanges");
+        await options?.onProgress?.("createRemoteRequest");
+
+        return buildRequest(item);
+      }
+    );
+    const repository = await loadRepository();
+
+    const started = repository.startCreateAlertRequest("ENG-2498");
+    const finished = await waitForCreateProgress(
+      repository,
+      started.sessionId
+    );
+    const stored = await findAlert(repository, "ENG-2498");
+
+    expect(started.status).toBe("pending");
+    expect(finished.status).toBe("completed");
+    expect(finished.step).toBe("done");
+    expect(finished.project?.requestMap["ENG-2498"]?.state).toBe("open");
+    expect(stored.status).toBe("in_review");
   });
 });

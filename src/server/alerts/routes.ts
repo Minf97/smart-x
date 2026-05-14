@@ -3,8 +3,10 @@ import {
   analyzeAlert,
   closeAlertRequest,
   createAlertRequest,
+  getCreateAlertRequestProgress,
   getDashboardData,
   mergeAlertRequest,
+  startCreateAlertRequest,
   syncRemoteAlerts,
   updateAlertStatus,
   updateStatusSchema,
@@ -93,6 +95,38 @@ alertsRouter.post("/alerts/:id/request", async (context) => {
         message: toErrorMessage(error, "Failed to create PR/MR."),
       },
       400
+    );
+  }
+});
+
+alertsRouter.post("/alerts/:id/request/start", (context) => {
+  try {
+    const progress = startCreateAlertRequest(context.req.param("id"));
+
+    return context.json(progress);
+  } catch (error) {
+    return context.json(
+      {
+        message: toErrorMessage(error, "Failed to start PR/MR creation."),
+      },
+      400
+    );
+  }
+});
+
+alertsRouter.post("/alerts/request/create/:sessionId/poll", (context) => {
+  try {
+    const progress = getCreateAlertRequestProgress(
+      context.req.param("sessionId")
+    );
+
+    return context.json(progress);
+  } catch (error) {
+    return context.json(
+      {
+        message: toErrorMessage(error, "Failed to poll PR/MR creation."),
+      },
+      404
     );
   }
 });

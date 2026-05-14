@@ -133,6 +133,36 @@ export interface Project extends ProjectRecord {
   requestMap: Record<string, CodeRequest>; // 请求表
 }
 
+export const CODE_REQUEST_CREATE_STATUS_VALUES = [
+  "pending",
+  "completed",
+  "failed",
+] as const;
+
+export type CodeRequestCreateStatus =
+  (typeof CODE_REQUEST_CREATE_STATUS_VALUES)[number];
+
+export const CODE_REQUEST_CREATE_STEP_VALUES = [
+  "loadAlert",
+  "syncBranch",
+  "applyFix",
+  "commitChanges",
+  "createRemoteRequest",
+  "done",
+] as const;
+
+export type CodeRequestCreateStep =
+  (typeof CODE_REQUEST_CREATE_STEP_VALUES)[number];
+
+export interface CodeRequestCreateProgress {
+  errorMessage: string | null; // 错误
+  progress: number; // 进度
+  project: Project | null; // 结果
+  sessionId: string; // 会话
+  status: CodeRequestCreateStatus; // 状态
+  step: CodeRequestCreateStep; // 步骤
+}
+
 export const PROJECT_CREATE_STATUS_VALUES = [
   "pending",
   "completed",

@@ -4,6 +4,7 @@ import type {
   LocalAlertSyncResult,
 } from "@shared/types/alert";
 import type {
+  CodeRequestCreateProgress,
   Project,
   ProjectCreateProgress,
   ProjectInput,
@@ -133,6 +134,26 @@ export async function createAlertRequest(id: string) {
   });
 
   return readJson<Project>(response);
+}
+
+// 启动创建PR
+export async function startCreateAlertRequest(id: string) {
+  const url = await buildApiUrl(`/alerts/${id}/request/start`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<CodeRequestCreateProgress>(response);
+}
+
+// 轮询创建PR
+export async function pollCreateAlertRequest(sessionId: string) {
+  const url = await buildApiUrl(`/alerts/request/create/${sessionId}/poll`);
+  const response = await fetch(url, {
+    method: "POST",
+  });
+
+  return readJson<CodeRequestCreateProgress>(response);
 }
 
 // 合并PR

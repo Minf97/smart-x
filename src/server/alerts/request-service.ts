@@ -1,5 +1,6 @@
 import type { Item } from "@shared/types/alert";
 import type {
+  CodeRequestCreateStep,
   CodeRequest,
   StoredProjectRepoConfig,
 } from "@shared/types/project";
@@ -81,6 +82,8 @@ interface CreateRequestOptions {
     item: Item;
     repoPath: string;
   }) => Promise<void>;
+  // 汇报创建阶段
+  onProgress?: (step: CodeRequestCreateStep) => void | Promise<void>;
 }
 
 // 取平台令牌
@@ -107,6 +110,7 @@ export async function createRequest(
   const title = buildRequestTitle(item);
   const token = await resolveProviderToken(config);
 
+  await options.onProgress?.("syncBranch");
   await updateManagedRemote({
     instanceUrl: config.instanceUrl,
     provider: config.provider,
@@ -121,12 +125,14 @@ export async function createRequest(
     repoPath: config.managedRepoPath,
   });
 
+  await options.onProgress?.("applyFix");
   await options.onBranchReady?.({
     branchName,
     item,
     repoPath: config.managedRepoPath,
   });
 
+  await options.onProgress?.("commitChanges");
   await commitAlertChanges({
     allowEmpty: !options.onBranchReady,
     item,
@@ -137,6 +143,7 @@ export async function createRequest(
     repoPath: config.managedRepoPath,
   });
 
+  await options.onProgress?.("createRemoteRequest");
   const remote =
     config.provider === "gitlab"
       ? await createGitlabMergeRequest({
