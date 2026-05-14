@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import { useProjectStore } from "@/store/project-store";
 import type { DashboardData } from "@/types/dashboard";
+import { updateAlertStatusInDashboard } from "./alert-cache";
 
 type RequestAction = "close" | "create" | "merge";
 
@@ -37,7 +38,7 @@ function getRequestToastKey(action: RequestAction) {
   }
 }
 
-// 写缓存
+// 写项目
 function updateProjectCache(
   queryClient: ReturnType<typeof useQueryClient>,
   project: Project
@@ -54,6 +55,17 @@ function updateProjectCache(
       ),
     };
   });
+}
+
+// 写状态
+function updateAlertStatusCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  alertId: string,
+  status: "in_review" | "done"
+) {
+  queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
+    updateAlertStatusInDashboard(data, alertId, status)
+  );
 }
 
 export default function RequestActions() {
@@ -96,6 +108,12 @@ export default function RequestActions() {
     onSuccess(updatedProject, variables) {
       const toastKey = getRequestToastKey(variables.action);
       updateProjectCache(queryClient, updatedProject);
+      if (variables.action === "create") {
+        updateAlertStatusCache(queryClient, variables.id, "in_review");
+      }
+      if (variables.action === "merge") {
+        updateAlertStatusCache(queryClient, variables.id, "done");
+      }
       updateProject(updatedProject);
       toast.success(t(toastKey.success));
     },

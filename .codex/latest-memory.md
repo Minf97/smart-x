@@ -1,23 +1,24 @@
 # 压缩记忆
 
 - 日期：2026-05-14
-- 主题：细化 Code Request 创建流程
+- 主题：提交前收敛检查
 
 ## 目标
 
-- 在主链路文档中细化 Code Request 从 base branch 到 PR/MR 的创建顺序。
-- 明确创建 PR/MR 成功后 Alert 应进入 `in_review`。
+- 确认当前工作区是否已经收敛、是否可以提交。
 
 ## 改动
 
-- `docs/main-flow.md`
-  - 新增 Code Request 创建流程章节，覆盖切 base branch、pull、创建分支、定位、修复、提交、push、创建 PR/MR、状态更新。
-  - 记录当前代码已覆盖部分和缺口：创建成功未自动 `in_review`、合并成功未自动 `done`、缺少创建进度状态。
+- 未改业务代码，仅检查当前未提交内容。
+- 当前待提交内容集中在 Alert 主链路状态流转、前端缓存同步、单测、文档和记忆。
 
 ## 验证
 
+- `git status --short`
+- `git diff --stat`
+- `npm test`
 - `npm run check`
 
 ## 待办
 
-- 后续实现 `createAlertRequest -> in_review` 和 `mergeAlertRequest -> done` 的自动状态流转。
+- 提交时记得包含 `src/components/dashboard/alert-cache.ts` 和 `src/tests/unit/alert-status-flow.test.ts` 两个未跟踪文件。

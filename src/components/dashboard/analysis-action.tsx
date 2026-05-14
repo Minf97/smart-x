@@ -7,25 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import type { DashboardData } from "@/types/dashboard";
-
-// 写缓存
-function updateAlertCache(
-  queryClient: ReturnType<typeof useQueryClient>,
-  updatedAlert: DashboardData["alerts"][number]
-) {
-  queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) => {
-    if (!data) {
-      return data;
-    }
-
-    return {
-      ...data,
-      alerts: data.alerts.map((item) =>
-        item.id === updatedAlert.id ? updatedAlert : item
-      ),
-    };
-  });
-}
+import {
+  replaceAlertInDashboard,
+  updateAlertStatusInDashboard,
+} from "./alert-cache";
 
 export default function AnalysisAction() {
   const { t } = useTranslation();
@@ -39,7 +24,16 @@ export default function AnalysisAction() {
     (currentProject?.repoConfig.managedRepoPath.trim().length ?? 0) > 0;
   const analyzeMutation = useMutation({
     mutationFn: (id: string) => analyzeAlert(id),
-    onMutate() {
+    onMutate(id) {
+      if (
+        selectedItem?.id === id &&
+        (selectedItem.status === "backlog" || selectedItem.status === "todo")
+      ) {
+        queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
+          updateAlertStatusInDashboard(data, id, "in_progress")
+        );
+      }
+
       return {
         toastId: toast.loading(t("dashboard.analyzePending"), {
           description: t("dashboard.analyzePendingHint"),
@@ -54,7 +48,9 @@ export default function AnalysisAction() {
     },
     onSuccess(updatedAlert, _id, context) {
       toast.dismiss(context?.toastId);
-      updateAlertCache(queryClient, updatedAlert);
+      queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
+        replaceAlertInDashboard(data, updatedAlert)
+      );
       toast.success(t("dashboard.analyzeSuccess"));
     },
   });

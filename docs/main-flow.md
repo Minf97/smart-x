@@ -187,11 +187,11 @@ Code Request 创建阶段不应重新猜测报警上下文，而应优先复用 
 - `createAlertRequest` 会要求 Alert 已经有 Analysis。
 - `applyAlertFixWithPi` 会在分支创建后修复代码。
 - `createRequest` 会提交、push 并创建 GitHub PR / GitLab MR。
+- `createAlertRequest` 成功后会把 Alert 状态更新为 `in_review`。
+- `mergeAlertRequest` 成功后会把 Alert 状态更新为 `done`。
 
 当前缺口：
 
-- `createAlertRequest` 成功后还没有把 Alert 状态自动更新为 `in_review`。
-- `mergeAlertRequest` 成功后还没有把 Alert 状态自动更新为 `done`。
 - Code Request 创建过程没有独立进度状态，失败时只能看到最终错误。
 
 ## 7. 数据闭环
@@ -236,7 +236,7 @@ Phase 1 只要求 1-6；第 7 条是 Phase 2 的验收点。
 优先补三处最小实现：
 
 - `src/server/alerts/repository.ts`
-  - 在分析、创建 Code Request、合并 Code Request 时更新 Alert 状态。
+  - 新增 Code Request 创建过程的进度状态，区分同步分支、修复、提交、创建 PR/MR。
 - `src/server/alerts/repository.ts`
   - 新增最小 Feedback Signal 本地存储，先不改 Remote Backend。
 - `docs/`

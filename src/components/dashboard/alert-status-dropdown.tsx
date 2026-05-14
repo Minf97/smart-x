@@ -17,25 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import type { DashboardData } from "@/types/dashboard";
+import { replaceAlertInDashboard } from "./alert-cache";
 import { getStatusIcon, getStatusLabel } from "./helpers";
 
 interface AlertStatusDropdownProps {
   item: Pick<Item, "id" | "status">;
   triggerClassName?: string;
-}
-
-// 同步缓存
-function updateAlertCache(data: DashboardData | undefined, updatedItem: Item) {
-  if (!data) {
-    return data;
-  }
-
-  return {
-    ...data,
-    alerts: data.alerts.map((item) =>
-      item.id === updatedItem.id ? updatedItem : item
-    ),
-  };
 }
 
 // 状态菜单
@@ -52,7 +39,7 @@ export default function AlertStatusDropdown({
     },
     onSuccess(updatedItem) {
       queryClient.setQueryData<DashboardData>(ALERTS_QUERY_KEY, (data) =>
-        updateAlertCache(data, updatedItem)
+        replaceAlertInDashboard(data, updatedItem)
       );
     },
   });

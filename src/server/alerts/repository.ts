@@ -802,13 +802,32 @@ export async function updateAlertStatus(id: string, status: ItemStatus) {
   });
 }
 
+// 取分析态
+function getAnalysisStartStatus(status: ItemStatus) {
+  if (status === "backlog" || status === "todo") {
+    return "in_progress";
+  }
+
+  return status;
+}
+
 // 分析报警
 export async function analyzeAlert(id: string) {
   ensureSeeded();
   await delay(360);
 
-  const row = getAlertRow(id);
-  const item = toItem(row);
+  let row = getAlertRow(id);
+  let item = toItem(row);
+  const nextStatus = getAnalysisStartStatus(item.status);
+
+  if (nextStatus !== item.status) {
+    updateAlertRow(row, {
+      status: nextStatus,
+      updatedAt: new Date().toISOString(),
+    });
+    row = getAlertRow(id);
+    item = toItem(row);
+  }
 
   // 已经入库的分析结果默认直接复用，避免对同一条报警重复分析。
   if (hasStoredAnalysis(item.detail.analysis)) {
@@ -849,6 +868,7 @@ export async function analyzeAlert(id: string) {
   } satisfies Analysis;
 
   return updateAlertRow(row, {
+    status: nextStatus,
     detailJson: stringifyJson({
       ...item.detail,
       analysis,
@@ -1137,6 +1157,13 @@ export async function createAlertRequest(id: string) {
   const request = project.requestMap[item.id];
 
   if (request) {
+    if (request.state === "open" && item.status !== "in_review") {
+      updateAlertRow(getAlertRow(id), {
+        status: "in_review",
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     return toProject(row);
   }
 
@@ -1144,7 +1171,7 @@ export async function createAlertRequest(id: string) {
     throw new Error("Alert analysis is missing. Analyze alert first.");
   }
 
-  return updateProjectRow(row, {
+  const updatedProject = updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
       [item.id]: await createRequest(item, project.repoConfig, {
@@ -1159,6 +1186,13 @@ export async function createAlertRequest(id: string) {
     }),
     updatedAt: new Date().toISOString(),
   });
+
+  updateAlertRow(getAlertRow(id), {
+    status: "in_review",
+    updatedAt: new Date().toISOString(),
+  });
+
+  return updatedProject;
 }
 
 // 合并PR
@@ -1176,16 +1210,30 @@ export async function mergeAlertRequest(id: string) {
   }
 
   if (request.state !== "open") {
+    if (request.state === "merged" && item.status !== "done") {
+      updateAlertRow(getAlertRow(id), {
+        status: "done",
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     return toProject(row);
   }
 
-  return updateProjectRow(row, {
+  const updatedProject = updateProjectRow(row, {
     requestMapJson: JSON.stringify({
       ...project.requestMap,
       [item.id]: await mergeRequest(request, project.repoConfig),
     }),
     updatedAt: new Date().toISOString(),
   });
+
+  updateAlertRow(getAlertRow(id), {
+    status: "done",
+    updatedAt: new Date().toISOString(),
+  });
+
+  return updatedProject;
 }
 
 // 关闭PR
