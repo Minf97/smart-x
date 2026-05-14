@@ -1,32 +1,23 @@
 # 压缩记忆
 
-- 日期：2026-05-13
-- 主题：切换 Packy AI 配置
+- 日期：2026-05-14
+- 主题：细化 Code Request 创建流程
 
 ## 目标
 
-- 火山 Coding Plan 过期后，验证 Packy / IKun 可用性并配置可用模型。
-- 修复报警分析 20 秒超时导致 Packy 请求失败的问题。
-- 让报警 `al_47a8859f32aa49c88d4e767068609197` 可完成 AI 分析。
+- 在主链路文档中细化 Code Request 从 base branch 到 PR/MR 的创建顺序。
+- 明确创建 PR/MR 成功后 Alert 应进入 `in_review`。
 
 ## 改动
 
-- `src/server/alerts/ai-service.ts`
-  - `AI_REQUEST_TIMEOUT_MS` 从 20 秒调到 60 秒。
-- `.env`
-  - 写入 Packy base URL、模型和本地 API key 配置。
-- 本地 SQLite
-  - 将项目 `We0` 的 AI 配置更新为 Packy `https://www.packyapi.com/v1` + `gpt-5.4`。
+- `docs/main-flow.md`
+  - 新增 Code Request 创建流程章节，覆盖切 base branch、pull、创建分支、定位、修复、提交、push、创建 PR/MR、状态更新。
+  - 记录当前代码已覆盖部分和缺口：创建成功未自动 `in_review`、合并成功未自动 `done`、缺少创建进度状态。
 
 ## 验证
 
-- Packy `gpt-5.5` / `gpt-5.4` / `gpt-5.4-mini` 均能连通；`gpt-5.5` 在带 system prompt 时返回事件流并报 overloaded。
-- Packy `gpt-5.4` 标准 Chat Completions JSON 返回正常。
-- `./node_modules/.bin/tsc --noEmit --skipLibCheck`
-- `npm test`
 - `npm run check`
-- 重启 Electron dev app 后，重新分析目标报警返回 200，耗时约 33.7 秒，分析结果已写回。
 
 ## 待办
 
-- 若以后坚持用 `gpt-5.5`，需要显式支持 Packy 返回的 `data:` 事件流和错误事件。
+- 后续实现 `createAlertRequest -> in_review` 和 `mergeAlertRequest -> done` 的自动状态流转。
