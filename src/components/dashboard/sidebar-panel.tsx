@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import { useAlertStore } from "@/store/alert-store";
-import { getLastSeen, getStatusIcon } from "./helpers";
+import AlertStatusDropdown from "./alert-status-dropdown";
+import { getLastSeen } from "./helpers";
 import ProjectSwitcher from "./project-switcher";
 import SettingsTrigger from "./settings-trigger";
 
@@ -95,28 +96,40 @@ export default function SidebarPanel() {
       <SidebarContent className="px-0">
         <SidebarMenu className="gap-0 px-2">
           {items.map((item) => (
-            <SidebarMenuItem key={item.id}>
+            <SidebarMenuItem
+              className="flex min-w-0 items-center gap-1"
+              key={item.id}
+              onMouseEnter={() => setHoveredId(item.id)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              <AlertStatusDropdown
+                item={item}
+                triggerClassName="h-8 w-7 shrink-0"
+              />
               <SidebarMenuButton
-                className="h-8 gap-2 px-2 hover:bg-accent"
+                className="h-8 min-w-0 flex-1 gap-2 px-2 hover:bg-accent"
                 isActive={selectedId === item.id}
                 onClick={() => setSelectedId(item.id)}
-                onMouseEnter={() => setHoveredId(item.id)}
-                onMouseLeave={() => setHoveredId(null)}
               >
-                {/* 图标 */}
-                <div className="shrink-0">{getStatusIcon(item.status)}</div>
-
                 {/* 编号 */}
-                <span className="w-16 shrink-0 font-mono text-muted-foreground text-xs">
+                <span
+                  className="w-16 shrink-0 truncate font-mono text-muted-foreground text-xs"
+                  title={item.id}
+                >
                   {item.id}
                 </span>
 
                 {/* 标题 */}
-                <span className="flex-1 truncate text-xs">{item.title}</span>
+                <span
+                  className="min-w-0 flex-1 truncate text-xs"
+                  title={item.title}
+                >
+                  {item.title}
+                </span>
 
                 {/* 时间 */}
                 {hoveredId === item.id && (
-                  <span className="shrink-0 text-muted-foreground text-xs">
+                  <span className="max-w-16 shrink-0 truncate text-muted-foreground text-xs">
                     {getLastSeen(item)}
                   </span>
                 )}
