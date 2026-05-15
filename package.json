@@ -19,7 +19,8 @@
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test",
-    "backend:check": "npm --prefix backend run check"
+    "backend:check": "npm --prefix backend run check",
+    "verify:webhook": "node scripts/verify-user-project-webhook.mjs"
   },
   "author": "ROG <luanroger.dev@gmail.com>",
   "license": "MIT",

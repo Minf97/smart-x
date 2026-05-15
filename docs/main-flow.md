@@ -30,10 +30,11 @@ User Project 上报 Alert
 - Desktop Agent 已能在分析前同步 base branch，再定位代码候选位置，并调用 OpenAI-compatible AI 生成 Analysis。
 - Desktop Agent 已能基于 Analysis 创建分支、调用修复 agent、提交、push，并创建 GitHub PR 或 GitLab MR。
 - UI 已有状态流转按钮、分析按钮、创建/合并/关闭 Code Request 的入口。
+- 已补充 User Project webhook 接入示例和 Remote Backend 端到端验收脚本。
 
 当前断点：
 
-- User Project 只有 webhook 合约，没有 SDK / 框架接入模板，接入成本高。
+- User Project 还没有正式 SDK 包，当前以文档示例和脚本验收为主。
 - Feedback Signal 已经在本地结构化记录，但还没有同步到 Remote Backend。
 - Remote Backend 暂无用户鉴权，只适合 MVP 链路验证。
 - Alert Group 目前只作为分组键，缺少同类报警复用 Analysis / 过滤噪音的策略。
@@ -246,7 +247,7 @@ Phase 1 只要求 1-6；第 7 条是 Phase 2 的验收点。
 
 - `src/server/alerts/repository.ts`
   - 后续把 Feedback Signal 同步到 Remote Backend。
-- `docs/`
-  - 新增 User Project webhook 接入示例，覆盖浏览器端和 Node 服务端。
+- `backend/`
+  - 增加 Feedback Signal 接收接口和存储表。
 
 这些完成后，主链路从“本地可演示闭环”进入“可复用历史信号”的阶段。
