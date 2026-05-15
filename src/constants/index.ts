@@ -1,4 +1,6 @@
 export const LOCAL_STORAGE_KEYS = {
+  AUTH_SESSION: "smart-x.auth-session",
+  ONBOARDING_COMPLETE: "smart-x.onboarding-complete",
   LANGUAGE: "lang",
   THEME: "theme",
 };

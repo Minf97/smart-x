@@ -1,65 +1,46 @@
-import { SiElectron, SiReact, SiVite } from "@icons-pack/react-simple-icons";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useTransition } from "react";
-import { useTranslation } from "react-i18next";
-import { getAppVersion } from "@/actions/app";
-import ExternalLink from "@/components/external-link";
-import LangToggle from "@/components/lang-toggle";
-import NavigationMenu from "@/components/navigation-menu";
-import ToggleTheme from "@/components/toggle-theme";
-import { Button } from "@/components/ui/button";
-
-/*
- * Update this page to modify your home page.
- * You can delete this file component to start from a blank page.
- */
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Activity, ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
+import { isOnboardingComplete, isSignedIn } from "@/actions/auth-session";
 
 function HomePage() {
-  const iconSize = 48;
+  const navigate = useNavigate();
 
-  const [appVersion, setAppVersion] = useState("0.0.0");
-  const [, startGetAppVersion] = useTransition();
-  const { t } = useTranslation();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!isSignedIn()) {
+        navigate({ to: "/login" });
+        return;
+      }
 
-  useEffect(
-    () => startGetAppVersion(() => getAppVersion().then(setAppVersion)),
-    []
-  );
+      navigate({ to: isOnboardingComplete() ? "/dashboard" : "/onboarding" });
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [navigate]);
 
   return (
-    <>
-      <NavigationMenu />
-      <div className="flex h-full flex-col items-center justify-center">
-        <div className="flex flex-col items-end justify-center gap-0.5">
-          <div className="inline-flex gap-2">
-            <SiReact size={iconSize} />
-            <SiVite size={iconSize} />
-            <SiElectron size={iconSize} />
+    <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-[#0b0d0f] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(59,130,246,0.18),transparent_34%),linear-gradient(135deg,rgba(16,185,129,0.12),transparent_42%)]" />
+      <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="relative flex flex-col items-center gap-5">
+        <div className="smartx-logo-pulse relative grid size-28 place-items-center rounded-[28px] border border-white/15 bg-white/[0.04] shadow-2xl shadow-blue-500/15">
+          <div className="absolute inset-2 rounded-[22px] border border-emerald-300/20" />
+          <div className="smartx-logo-scan absolute inset-0 rounded-[28px]" />
+          <ShieldCheck className="size-12 text-emerald-200" />
+        </div>
+        <div className="smartx-logo-rise text-center">
+          <div className="flex items-center justify-center gap-2 font-mono text-[0.68rem] text-emerald-200/80 uppercase tracking-[0.34em]">
+            <Activity className="size-3" />
+            Alert loop
           </div>
-          <span className="flex items-end justify-end">
-            <h1 className="font-bold font-mono text-4xl">{t("appName")}</h1>
-            <p className="text-muted-foreground text-sm">v{appVersion}</p>
-          </span>
-          <div className="flex w-full justify-between">
-            <ExternalLink
-              className="flex gap-2 text-muted-foreground text-sm"
-              href="https://github.com/LuanRoger"
-            >
-              {t("madeBy")}
-            </ExternalLink>
-            <div className="flex items-center gap-2">
-              <LangToggle />
-              <ToggleTheme />
-            </div>
-          </div>
-          <div className="mt-6">
-            <Link to="/dashboard">
-              <Button>Open Dashboard</Button>
-            </Link>
-          </div>
+          <h1 className="mt-2 font-semibold text-2xl tracking-normal">
+            Smart X
+          </h1>
+          <p className="mt-1 text-sm text-white/55">准备你的报警工作台</p>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

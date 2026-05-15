@@ -1,5 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { isOnboardingComplete, isSignedIn } from "@/actions/auth-session";
 import DetailHeader from "@/components/dashboard/detail-header";
 import FooterBar from "@/components/dashboard/footer-bar";
 import HeaderBar from "@/components/dashboard/header-bar";
@@ -45,6 +47,29 @@ function DashboardError({ error, retry }: DashboardErrorProps) {
   );
 }
 
+function DashboardGate() {
+  const navigate = useNavigate();
+  const signedIn = isSignedIn();
+  const onboarded = isOnboardingComplete();
+
+  useEffect(() => {
+    if (!signedIn) {
+      navigate({ to: "/login" });
+      return;
+    }
+
+    if (!onboarded) {
+      navigate({ to: "/onboarding" });
+    }
+  }, [navigate, onboarded, signedIn]);
+
+  if (!(signedIn && onboarded)) {
+    return <DashboardLoading />;
+  }
+
+  return <DashboardPage />;
+}
+
 function DashboardPage() {
   const { error, loading, refetch } = useDashboardBootstrap();
 
@@ -87,5 +112,5 @@ function DashboardPage() {
 }
 
 export const Route = createFileRoute("/dashboard")({
-  component: DashboardPage,
+  component: DashboardGate,
 });
