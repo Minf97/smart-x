@@ -3,6 +3,7 @@
 本文记录 AI Alert Dashboard 的主链路设计：User Project 如何接入 AI Alert Platform，Alert 如何被分析和修复，以及 Feedback Signal 如何反过来优化后续处理。
 
 > 参考文档：用户提供的飞书 wiki 链接当前无法在本环境读取。本文先基于当前代码和已有 docs 收敛框架，后续拿到可访问内容后再逐条对齐。
+> 新用户引导、SDK 和 demo 计划见 `docs/onboarding-and-activation-plan.md`。
 
 ## 1. 目标闭环
 
