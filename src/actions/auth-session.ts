@@ -53,6 +53,12 @@ export function signOut() {
   localStorage.removeItem(LOCAL_STORAGE_KEYS.AUTH_SESSION);
 }
 
+// 重置流程
+export function resetAuthSession() {
+  localStorage.removeItem(LOCAL_STORAGE_KEYS.AUTH_SESSION);
+  localStorage.removeItem(LOCAL_STORAGE_KEYS.ONBOARDING_COMPLETE);
+}
+
 // 教程状态
 export function isOnboardingComplete() {
   return localStorage.getItem(LOCAL_STORAGE_KEYS.ONBOARDING_COMPLETE) === "1";

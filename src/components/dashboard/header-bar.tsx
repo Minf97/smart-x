@@ -1,16 +1,29 @@
-import { Search } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { RotateCcw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { resetAuthSession } from "@/actions/auth-session";
 import FilterBar from "@/components/dashboard/filter-bar";
 import HeaderLangToggle from "@/components/header-lang-toggle";
 import ToggleTheme from "@/components/toggle-theme";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { inDevelopment } from "@/constants";
 import { useAlertStore } from "@/store/alert-store";
 
 export default function HeaderBar() {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const search = useAlertStore((state) => state.search);
   const setSearch = useAlertStore((state) => state.setSearch);
+
+  // 重置引导
+  function handleResetOnboarding() {
+    resetAuthSession();
+    toast.success("已重置新手流程");
+    navigate({ to: "/" });
+  }
 
   return (
     <header className="flex items-center gap-4 border-b px-4 py-3">
@@ -30,6 +43,17 @@ export default function HeaderBar() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {inDevelopment ? (
+              <Button
+                aria-label="重置新手流程"
+                onClick={handleResetOnboarding}
+                size="icon"
+                title="重置新手流程"
+                variant="ghost"
+              >
+                <RotateCcw className="size-4" />
+              </Button>
+            ) : null}
             <HeaderLangToggle />
             <ToggleTheme />
           </div>
