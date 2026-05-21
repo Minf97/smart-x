@@ -306,3 +306,15 @@ export async function updateProject(id: string, input: ProjectInput) {
 
   return readJson<Project>(response);
 }
+
+// 删除项目
+export async function deleteProject(id: string) {
+  const url = await buildApiUrl(`/projects/${id}`);
+  const response = await fetch(url, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    await readJson<never>(response);
+  }
+}

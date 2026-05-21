@@ -1,6 +1,11 @@
 import type { Analysis, CodeLocation, Item } from "@shared/types/alert";
 import type { ProjectAiConfig } from "@shared/types/project";
-import { z } from "zod";
+import {
+  ANALYSIS_SCHEMA,
+  type AnalysisPayload,
+  buildAnalysisSystemPrompt,
+  buildAnalysisUserPrompt,
+} from "./analysis-contract";
 
 interface AnalyzeAlertWithAiInput {
   aiConfig: ProjectAiConfig;
@@ -25,52 +30,6 @@ interface ChatCompletionResponse {
   };
 }
 
-const OPTIONAL_POSITIVE_INT = z.preprocess(
-  (value) => (value == null ? undefined : value),
-  z.number().int().positive().optional()
-);
-const OPTIONAL_STRING = z.preprocess((value) => {
-  if (value == null) {
-    return undefined;
-  }
-
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}, z.string().trim().min(1).optional());
-
-const ANALYSIS_SCHEMA = z.object({
-  codeLocations: z
-    .array(
-      z.object({
-        column: OPTIONAL_POSITIVE_INT,
-        filePath: z.string().trim().min(1),
-        line: OPTIONAL_POSITIVE_INT,
-        reason: OPTIONAL_STRING,
-        symbolName: OPTIONAL_STRING,
-      })
-    )
-    .max(3)
-    .optional()
-    .default([]),
-  fixSuggestions: z
-    .array(
-      z.object({
-        patch: OPTIONAL_STRING,
-        risk: OPTIONAL_STRING,
-        summary: z.string().trim().min(1),
-        verification: OPTIONAL_STRING,
-      })
-    )
-    .max(3)
-    .optional()
-    .default([]),
-  impact: z.string().trim().min(1),
-  rootCause: z.string().trim().min(1),
-});
 const JSON_CODE_FENCE_RE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const VERSION_SUFFIX_RE = /\/v\d+$/u;
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -96,84 +55,6 @@ function getMessageContent(data: ChatCompletionResponse) {
   }
 
   throw new Error("AI response content is empty.");
-}
-
-// 收窄文本
-function truncateText(value: string, maxLength: number) {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength)}\n...[truncated]`;
-}
-
-// 原始报警
-function stringifyRawAlert(rawAlert: unknown) {
-  try {
-    return truncateText(JSON.stringify(rawAlert ?? null, null, 2), 4000);
-  } catch {
-    return String(rawAlert ?? "");
-  }
-}
-
-// 上下文包
-function buildContextPayload(
-  item: Item,
-  candidateCodeLocations: CodeLocation[]
-) {
-  return {
-    alert: {
-      id: item.id,
-      message: item.detail.error.message,
-      priority: item.priority,
-      source: item.detail.summary.source,
-      title: item.title,
-    },
-    candidateCodeLocations: candidateCodeLocations.map((location) => ({
-      column: location.column,
-      filePath: location.filePath,
-      line: location.line,
-      reason: location.reason,
-      snippet: location.snippet,
-      symbolName: location.symbolName,
-    })),
-    rawAlert: stringifyRawAlert(item.detail.error.rawAlert),
-    summary: {
-      environment: item.detail.summary.environment,
-      occurrenceCount: item.detail.summary.occurrenceCount,
-      sourceUrl: item.detail.summary.sourceUrl,
-    },
-  };
-}
-
-// 系统提示
-function buildSystemPrompt() {
-  return [
-    "You are an expert software incident analyst.",
-    "Use only the provided alert and repository context.",
-    "Return valid JSON only.",
-    "Keep rootCause and impact concise and practical.",
-    "Choose at most 3 codeLocations from the provided candidates.",
-    "Do not invent files or lines that are not present in the candidates.",
-    "Give 1 to 3 minimal fixSuggestions.",
-    "You should use Chinese.",
-  ].join(" ");
-}
-
-// 用户提示
-function buildUserPrompt(item: Item, candidateCodeLocations: CodeLocation[]) {
-  return [
-    "Analyze this alert and return JSON with exactly these keys:",
-    "{",
-    '  "rootCause": string,',
-    '  "impact": string,',
-    '  "codeLocations": Array<{ "filePath": string, "line"?: number, "column"?: number, "reason"?: string, "symbolName"?: string }>,',
-    '  "fixSuggestions": Array<{ "summary": string, "patch"?: string, "risk"?: string, "verification"?: string }>',
-    "}",
-    "",
-    "Context:",
-    JSON.stringify(buildContextPayload(item, candidateCodeLocations), null, 2),
-  ].join("\n");
 }
 
 // 提取 JSON
@@ -230,7 +111,9 @@ function toAiRequestError(error: unknown) {
     }
 
     if (error.message === "fetch failed") {
-      return new Error("AI service is unreachable. Check AI base URL and network.");
+      return new Error(
+        "AI service is unreachable. Check AI base URL and network."
+      );
     }
 
     return error;
@@ -270,7 +153,7 @@ function parseChatCompletionResponse(text: string) {
 // 合并位置
 function mergeCodeLocations(
   candidateCodeLocations: CodeLocation[],
-  aiCodeLocations: z.infer<typeof ANALYSIS_SCHEMA>["codeLocations"]
+  aiCodeLocations: AnalysisPayload["codeLocations"]
 ) {
   if (aiCodeLocations.length === 0) {
     return candidateCodeLocations;
@@ -305,11 +188,11 @@ export async function analyzeAlertWithAi({
       body: JSON.stringify({
         messages: [
           {
-            content: buildSystemPrompt(),
+            content: buildAnalysisSystemPrompt(),
             role: "system",
           },
           {
-            content: buildUserPrompt(item, candidateCodeLocations),
+            content: buildAnalysisUserPrompt(item, candidateCodeLocations),
             role: "user",
           },
         ],
@@ -337,10 +220,12 @@ export async function analyzeAlertWithAi({
   const parsed = ANALYSIS_SCHEMA.parse(JSON.parse(extractJsonText(content)));
 
   return {
+    businessImpact: parsed.businessImpact,
     codeLocations: mergeCodeLocations(
       candidateCodeLocations,
       parsed.codeLocations
     ),
+    fixDecision: parsed.fixDecision,
     fixSuggestions: parsed.fixSuggestions,
     impact: parsed.impact,
     rootCause: parsed.rootCause,

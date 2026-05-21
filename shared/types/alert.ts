@@ -93,6 +93,42 @@ export interface FixSuggestion {
   verification?: string; // 验证
 }
 
+// 置信度枚举
+export const BUSINESS_IMPACT_CONFIDENCE_VALUES = [
+  "high",
+  "medium",
+  "low",
+] as const;
+
+// 置信度类型
+export type BusinessImpactConfidence =
+  (typeof BUSINESS_IMPACT_CONFIDENCE_VALUES)[number];
+
+// 修复动作枚举
+export const FIX_DECISION_ACTION_VALUES = [
+  "create_request",
+  "keep_backlog",
+] as const;
+
+// 修复动作类型
+export type FixDecisionAction = (typeof FIX_DECISION_ACTION_VALUES)[number];
+
+// 业务影响
+export interface BusinessImpact {
+  actualBehavior: string; // 实际行为
+  affectedSurface: string; // 影响范围
+  affectsUser: boolean; // 影响用户
+  confidence: BusinessImpactConfidence; // 置信度
+  evidence: string; // 判断依据
+  expectedBehavior: string; // 预期行为
+}
+
+// 修复决策
+export interface FixDecision {
+  action: FixDecisionAction; // 动作
+  reason: string; // 原因
+}
+
 // 反馈枚举
 export const FEEDBACK_SIGNAL_ACTION_VALUES = [
   "done",
@@ -119,11 +155,17 @@ export interface FeedbackSignal {
 // 分析结果
 export interface Analysis {
   // 实现:
+  // A. 先判断堆栈是否影响用户可见业务
+  // B. 再对比预期行为和实际行为
+  // C. 最后给自动模式提供修复决策依据
+  businessImpact?: BusinessImpact; // 业务影响
+  // 实现:
   // A. 先解析 stack 里的源码线索
   // B. 再去仓库里检索候选文件
   // C. 再读取候选代码前后文
   // D. 再输出一个或多个候选位置
   codeLocations?: CodeLocation[]; // 位置
+  fixDecision?: FixDecision; // 决策
   // 实现:
   // A. 先基于候选位置读取更大范围上下文
   // B. 再推理最可能的修复点

@@ -805,6 +805,11 @@ function hasStoredAnalysis(analysis?: Analysis) {
   );
 }
 
+// 是否建请求
+function shouldCreateCodeRequest(analysis?: Analysis) {
+  return analysis?.fixDecision?.action !== "keep_backlog";
+}
+
 // 初始化种子
 function ensureSeeded() {
   const db = getDb();
@@ -1306,6 +1311,10 @@ export async function createAlertRequest(
 
   if (!hasStoredAnalysis(item.detail.analysis)) {
     throw new Error("Alert analysis is missing. Analyze alert first.");
+  }
+
+  if (!shouldCreateCodeRequest(item.detail.analysis)) {
+    throw new Error("Alert analysis recommends keeping this alert in backlog.");
   }
 
   const updatedProject = updateProjectRow(row, {

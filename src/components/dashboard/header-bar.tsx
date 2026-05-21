@@ -1,15 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { BookOpen, RotateCcw, Search } from "lucide-react";
+import { BookOpen, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { resetAuthSession } from "@/actions/auth-session";
+import AutoModeAction from "@/components/dashboard/auto-mode-action";
 import FilterBar from "@/components/dashboard/filter-bar";
 import HeaderLangToggle from "@/components/header-lang-toggle";
 import ToggleTheme from "@/components/toggle-theme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { inDevelopment } from "@/constants";
 import { useAlertStore } from "@/store/alert-store";
 
 export default function HeaderBar() {
@@ -21,13 +19,6 @@ export default function HeaderBar() {
   // 打开指引
   function openOnboarding() {
     navigate({ to: "/onboarding" });
-  }
-
-  // 重置引导
-  function handleResetOnboarding() {
-    resetAuthSession();
-    toast.success("已重置新手流程");
-    navigate({ to: "/" });
   }
 
   return (
@@ -57,17 +48,7 @@ export default function HeaderBar() {
             >
               <BookOpen className="size-4" />
             </Button>
-            {inDevelopment ? (
-              <Button
-                aria-label="重置新手流程"
-                onClick={handleResetOnboarding}
-                size="icon"
-                title="重置新手流程"
-                variant="ghost"
-              >
-                <RotateCcw className="size-4" />
-              </Button>
-            ) : null}
+            <AutoModeAction />
             <HeaderLangToggle />
             <ToggleTheme />
           </div>

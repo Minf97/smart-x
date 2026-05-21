@@ -8,6 +8,7 @@ import {
   validateProjectConnection,
   validateProjectSchema,
 } from "@/server/alerts/repository";
+import { deleteProject } from "@/server/projects/delete-project-service";
 import { getCreateProjectProgress } from "@/server/projects/project-create-progress";
 
 // 项目路由
@@ -137,6 +138,26 @@ projectsRouter.patch("/projects/:id", async (context) => {
         message: toErrorMessage(error, "Failed to update project."),
       },
       404
+    );
+  }
+});
+
+projectsRouter.delete("/projects/:id", async (context) => {
+  try {
+    await deleteProject(context.req.param("id"));
+
+    return context.body(null, 204);
+  } catch (error) {
+    const status =
+      error instanceof Error && error.message === "Project not found."
+        ? 404
+        : 500;
+
+    return context.json(
+      {
+        message: toErrorMessage(error, "Failed to delete project."),
+      },
+      status
     );
   }
 });

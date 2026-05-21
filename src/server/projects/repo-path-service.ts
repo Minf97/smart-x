@@ -35,16 +35,29 @@ function splitRepoName(repoName: string) {
 }
 
 // 默认路径
+export function getManagedRepoRoot() {
+  return path.join(app.getPath("documents"), "workspace", "managed-repos");
+}
+
+// 默认路径
 function buildManagedRepoPath(
   provider: ProjectInput["repoConfig"]["provider"],
   repoName: string
 ) {
-  return path.join(
-    app.getPath("documents"),
-    "workspace",
-    "managed-repos",
-    provider,
-    ...splitRepoName(repoName)
+  return path.join(getManagedRepoRoot(), provider, ...splitRepoName(repoName));
+}
+
+// 托管路径
+export function isManagedRepoPath(repoPath: string) {
+  const relativePath = path.relative(
+    getManagedRepoRoot(),
+    path.resolve(repoPath)
+  );
+
+  return (
+    !!relativePath &&
+    !relativePath.startsWith("..") &&
+    !path.isAbsolute(relativePath)
   );
 }
 

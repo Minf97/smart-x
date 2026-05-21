@@ -1,8 +1,18 @@
 import path from "node:path";
 import type { Analysis, CodeLocation, Item } from "@shared/types/alert";
 import type { ProjectAiConfig } from "@shared/types/project";
-import { app } from "electron";
-import { z } from "zod";
+import {
+  ANALYSIS_SCHEMA,
+  type AnalysisPayload,
+  buildAnalysisUserPrompt,
+  buildFixPrompt,
+} from "./analysis-contract";
+import {
+  buildPiAgentDir,
+  createPiSessionServices,
+  readSessionText,
+  validatePiAiConfig,
+} from "./pi-session";
 
 interface AnalyzeAlertWithPiInput {
   aiConfig: ProjectAiConfig;
@@ -17,273 +27,9 @@ interface ApplyAlertFixWithPiInput {
   repoPath: string;
 }
 
-interface SessionMessage {
-  content?: unknown;
-  role?: string;
-}
-
-const OPTIONAL_POSITIVE_INT = z.preprocess(
-  (value) => (value == null ? undefined : value),
-  z.number().int().positive().optional()
-);
-const OPTIONAL_STRING = z.preprocess((value) => {
-  if (value == null) {
-    return undefined;
-  }
-
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}, z.string().trim().min(1).optional());
-const ANALYSIS_SCHEMA = z.object({
-  codeLocations: z
-    .array(
-      z.object({
-        column: OPTIONAL_POSITIVE_INT,
-        filePath: z.string().trim().min(1),
-        line: OPTIONAL_POSITIVE_INT,
-        reason: OPTIONAL_STRING,
-        symbolName: OPTIONAL_STRING,
-      })
-    )
-    .max(3)
-    .optional()
-    .default([]),
-  fixSuggestions: z
-    .array(
-      z.object({
-        patch: OPTIONAL_STRING,
-        risk: OPTIONAL_STRING,
-        summary: z.string().trim().min(1),
-        verification: OPTIONAL_STRING,
-      })
-    )
-    .max(3)
-    .optional()
-    .default([]),
-  impact: z.string().trim().min(1),
-  rootCause: z.string().trim().min(1),
-});
 const JSON_CODE_FENCE_RE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
-const MAX_RAW_ALERT_LENGTH = 4000;
-const PI_PROVIDER_NAME = "project-ai";
 
-function validateAiConfig(aiConfig: ProjectAiConfig) {
-  if (
-    !(
-      aiConfig.apiKey.trim() &&
-      aiConfig.baseUrl.trim() &&
-      aiConfig.model.trim()
-    )
-  ) {
-    throw new Error("AI settings are incomplete.");
-  }
-}
-
-function truncateText(value: string, maxLength: number) {
-  if (value.length <= maxLength) {
-    return value;
-  }
-
-  return `${value.slice(0, maxLength)}\n...[truncated]`;
-}
-
-function stringifyRawAlert(rawAlert: unknown) {
-  try {
-    return truncateText(JSON.stringify(rawAlert ?? null, null, 2), MAX_RAW_ALERT_LENGTH);
-  } catch {
-    return String(rawAlert ?? "");
-  }
-}
-
-function normalizeProviderBaseUrl(baseUrl: string) {
-  const normalized = baseUrl.trim().replace(/\/+$/g, "");
-
-  // pi provider 需要的是根地址，用户配置里可能已经带了具体 endpoint。
-  if (normalized.endsWith("/chat/completions")) {
-    return normalized.slice(0, -"/chat/completions".length);
-  }
-
-  if (normalized.endsWith("/responses")) {
-    return normalized.slice(0, -"/responses".length);
-  }
-
-  return normalized;
-}
-
-function buildPiAgentDir() {
-  try {
-    const userDataPath = app.getPath("userData");
-
-    // 正常情况下把 pi 会话状态放在 Electron 用户目录下。
-    if (typeof userDataPath === "string" && userDataPath.trim()) {
-      return path.join(userDataPath, "pi-agent");
-    }
-  } catch {}
-
-  // 启动早期或重启阶段拿不到 userData 时，退回当前工作目录。
-  return path.join(process.cwd(), ".pi-agent");
-}
-
-async function createPiSessionServices(aiConfig: ProjectAiConfig) {
-  const sdk = await import("@mariozechner/pi-coding-agent");
-  const authStorage = sdk.AuthStorage.inMemory();
-
-  authStorage.setRuntimeApiKey(PI_PROVIDER_NAME, aiConfig.apiKey.trim());
-
-  // 把项目里的 AI 配置桥接成 pi 可识别的 provider。
-  const modelRegistry = sdk.ModelRegistry.inMemory(authStorage);
-  modelRegistry.registerProvider(PI_PROVIDER_NAME, {
-    api: "openai-completions",
-    apiKey: aiConfig.apiKey.trim(),
-    baseUrl: normalizeProviderBaseUrl(aiConfig.baseUrl),
-    models: [
-      {
-        compat: {
-          maxTokensField: "max_tokens",
-          supportsDeveloperRole: false,
-          supportsStore: false,
-        },
-        contextWindow: 128000,
-        cost: {
-          cacheRead: 0,
-          cacheWrite: 0,
-          input: 0,
-          output: 0,
-        },
-        id: aiConfig.model.trim(),
-        input: ["text"],
-        maxTokens: 8192,
-        name: aiConfig.model.trim(),
-        reasoning: false,
-      },
-    ],
-  });
-
-  const model = modelRegistry.find(PI_PROVIDER_NAME, aiConfig.model.trim());
-
-  if (!model) {
-    throw new Error("PI model is not available.");
-  }
-
-  return {
-    ...sdk,
-    authStorage,
-    model,
-    modelRegistry,
-    settingsManager: sdk.SettingsManager.inMemory({
-      compaction: { enabled: false },
-    }),
-  };
-}
-
-function buildContextPayload(
-  item: Item,
-  candidateCodeLocations: CodeLocation[]
-) {
-  return {
-    alert: {
-      id: item.id,
-      message: item.detail.error.message,
-      priority: item.priority,
-      source: item.detail.summary.source,
-      sourceUrl: item.detail.summary.sourceUrl,
-      stack: item.detail.error.stack,
-      title: item.title,
-    },
-    candidateCodeLocations: candidateCodeLocations.map((location) => ({
-      column: location.column,
-      filePath: location.filePath,
-      line: location.line,
-      reason: location.reason,
-      snippet: location.snippet,
-      symbolName: location.symbolName,
-    })),
-    rawAlert: stringifyRawAlert(item.detail.error.rawAlert),
-    summary: {
-      environment: item.detail.summary.environment,
-      occurrenceCount: item.detail.summary.occurrenceCount,
-      sourceUrl: item.detail.summary.sourceUrl,
-    },
-  };
-}
-
-function buildPiPrompt(item: Item, candidateCodeLocations: CodeLocation[]) {
-  return [
-    "You are analyzing an alert inside the local repository.",
-    "You can inspect the repository with tools before answering.",
-    "Use the provided candidateCodeLocations only as hints, not as guaranteed truth.",
-    "Return valid JSON only, with exactly these keys:",
-    "{",
-    '  "rootCause": string,',
-    '  "impact": string,',
-    '  "codeLocations": Array<{ "filePath": string, "line"?: number, "column"?: number, "reason"?: string, "symbolName"?: string }>,',
-    '  "fixSuggestions": Array<{ "summary": string, "patch"?: string, "risk"?: string, "verification"?: string }>',
-    "}",
-    "Rules:",
-    "- Use Chinese.",
-    "- Inspect the repo with read-only tools before concluding.",
-    "- Choose at most 3 codeLocations.",
-    "- Prefer repository-relative filePath values.",
-    "- If a field is unknown, omit it instead of using null.",
-    "- Keep rootCause and impact concise and practical.",
-    "",
-    "Context:",
-    JSON.stringify(buildContextPayload(item, candidateCodeLocations), null, 2),
-  ].join("\n");
-}
-
-function buildFixContextPayload(item: Item) {
-  return {
-    alert: {
-      id: item.id,
-      message: item.detail.error.message,
-      priority: item.priority,
-      source: item.detail.summary.source,
-      sourceUrl: item.detail.summary.sourceUrl,
-      stack: item.detail.error.stack,
-      title: item.title,
-    },
-    analysis: {
-      codeLocations: (item.detail.analysis?.codeLocations ?? []).map((location) => ({
-        column: location.column,
-        filePath: location.filePath,
-        line: location.line,
-        reason: location.reason,
-        snippet: location.snippet,
-        symbolName: location.symbolName,
-      })),
-      fixSuggestions: item.detail.analysis?.fixSuggestions ?? [],
-      impact: item.detail.analysis?.impact ?? "",
-      rootCause: item.detail.analysis?.rootCause ?? "",
-    },
-    rawAlert: stringifyRawAlert(item.detail.error.rawAlert),
-    summary: {
-      environment: item.detail.summary.environment,
-      occurrenceCount: item.detail.summary.occurrenceCount,
-      sourceUrl: item.detail.summary.sourceUrl,
-    },
-  };
-}
-
-function buildFixPrompt(item: Item) {
-  return [
-    "You are fixing an alert inside the local repository.",
-    "Inspect the repository before editing files.",
-    "Apply the smallest coherent production code change that addresses the alert.",
-    "Prefer files from analysis.codeLocations when they are relevant.",
-    "Do not run git commands.",
-    "Do not create branches, commits, or pull requests.",
-    "Keep the final answer short and summarize which files you changed.",
-    "",
-    "Context:",
-    JSON.stringify(buildFixContextPayload(item), null, 2),
-  ].join("\n");
-}
-
+// 提取 JSON
 function extractJsonText(content: string) {
   const trimmed = content.trim();
   const fenced = trimmed.match(JSON_CODE_FENCE_RE);
@@ -302,44 +48,11 @@ function extractJsonText(content: string) {
   return trimmed.slice(start, end + 1);
 }
 
-function readSessionText(messages: SessionMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (message.role !== "assistant" || !Array.isArray(message.content)) {
-      continue;
-    }
-
-    const text = message.content
-      .map((item) => {
-        if (
-          typeof item === "object" &&
-          item !== null &&
-          "type" in item &&
-          item.type === "text" &&
-          "text" in item &&
-          typeof item.text === "string"
-        ) {
-          return item.text;
-        }
-
-        return "";
-      })
-      .join("")
-      .trim();
-
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
-}
-
+// 合并位置
 function mergeCodeLocations(
   repoPath: string,
   candidateCodeLocations: CodeLocation[],
-  aiCodeLocations: z.infer<typeof ANALYSIS_SCHEMA>["codeLocations"]
+  aiCodeLocations: AnalysisPayload["codeLocations"]
 ) {
   if (aiCodeLocations.length === 0) {
     return candidateCodeLocations;
@@ -381,7 +94,7 @@ export async function analyzeAlertWithPi({
   item,
   repoPath,
 }: AnalyzeAlertWithPiInput): Promise<Analysis> {
-  validateAiConfig(aiConfig);
+  validatePiAiConfig(aiConfig);
 
   if (!repoPath.trim()) {
     throw new Error("Local repository path is not configured.");
@@ -436,7 +149,9 @@ export async function analyzeAlertWithPi({
       }
     });
 
-    await session.prompt(buildPiPrompt(item, candidateCodeLocations));
+    await session.prompt(
+      buildAnalysisUserPrompt(item, candidateCodeLocations, true)
+    );
 
     const finalText = responseText.trim() || readSessionText(session.messages);
 
@@ -444,14 +159,18 @@ export async function analyzeAlertWithPi({
       throw new Error("PI response content is empty.");
     }
 
-    const parsed = ANALYSIS_SCHEMA.parse(JSON.parse(extractJsonText(finalText)));
+    const parsed = ANALYSIS_SCHEMA.parse(
+      JSON.parse(extractJsonText(finalText))
+    );
 
     return {
+      businessImpact: parsed.businessImpact,
       codeLocations: mergeCodeLocations(
         repoPath,
         candidateCodeLocations,
         parsed.codeLocations
       ),
+      fixDecision: parsed.fixDecision,
       fixSuggestions: parsed.fixSuggestions,
       impact: parsed.impact,
       rootCause: parsed.rootCause,
@@ -466,7 +185,7 @@ export async function applyAlertFixWithPi({
   item,
   repoPath,
 }: ApplyAlertFixWithPiInput) {
-  validateAiConfig(aiConfig);
+  validatePiAiConfig(aiConfig);
 
   if (!repoPath.trim()) {
     throw new Error("Local repository path is not configured.");

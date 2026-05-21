@@ -7,6 +7,8 @@ import { codeInspectorPlugin } from "code-inspector-plugin";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // 暴露 AI 配置
+  envPrefix: ["VITE_", "AI_"],
   plugins: [
     tanstackRouter({
       target: "react",

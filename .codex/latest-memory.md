@@ -1,6 +1,6 @@
-# Webhook Step 进入 Dashboard
+# 报警分析 Prompt 精修
 
-- 目标：补齐 onboarding 最后一步的收口，并允许用户在 Dashboard 随时回到接入指引。
-- 改动：Webhook step 增加“进入 Dashboard”，点击后 `completeOnboarding()` 并跳转 `/dashboard`；已有项目重新打开 onboarding 时，AI 已配置则直接进入 webhook step，否则进入 AI Settings；Dashboard header 增加“接入指引”入口跳转 `/onboarding`。
-- 验证：`npm run test -- src/tests/unit/onboarding-layout.test.tsx src/tests/unit/dashboard-header-layout.test.tsx src/tests/unit/create-project-dialog-layout.test.tsx` 通过；本次 touched 文件 `biome check` 通过；`npm --prefix backend run check` 通过；`git diff --check` 通过。
-- 待办：无。
+- 目标：让 AI 分析先判断真实业务/用户可见影响，再决定是否修复并创建 PR/MR。
+- 改动：扩展 `Analysis` 增加 `businessImpact` 和 `fixDecision`；抽出共享分析/修复 prompt 与 schema；自动模式遇到 `keep_backlog` 会写回 Backlog 并跳过创建请求；创建请求入口也拒绝 `keep_backlog`。
+- 验证：相关 Vitest、`npm run test`、touched 文件 Ultracite、`git diff --check` 通过；全量 `npm run check` 和 `npx tsc --noEmit` 仍被既有无关 lint/依赖类型问题阻塞。
+- 待办：全量 Ultracite 和 TypeScript 项目检查需要单独清理仓库既有问题。

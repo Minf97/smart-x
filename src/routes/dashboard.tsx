@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { isOnboardingComplete, isSignedIn } from "@/actions/auth-session";
+import AutoModeRunner from "@/components/dashboard/auto-mode-runner";
 import DetailHeader from "@/components/dashboard/detail-header";
 import FooterBar from "@/components/dashboard/footer-bar";
 import HeaderBar from "@/components/dashboard/header-bar";
@@ -98,6 +99,7 @@ function DashboardPage() {
         {/* 主内容 */}
         <SidebarInset>
           <div className="flex h-full flex-col">
+            <AutoModeRunner />
             <HeaderBar />
             <DetailHeader />
             <div className="flex-1 overflow-auto">
