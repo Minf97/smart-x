@@ -1,5 +1,5 @@
 import path from "node:path";
-import { getDefaultProjectAiConfig } from "@shared/types/project";
+import { DEFAULT_PROJECT_AI_CONFIG } from "@shared/types/project";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
@@ -38,7 +38,7 @@ function getDbPath() {
 
 // 建表句
 function getSchemaSql() {
-  const aiConfig = JSON.stringify(getDefaultProjectAiConfig());
+  const aiConfig = JSON.stringify(DEFAULT_PROJECT_AI_CONFIG);
 
   return `
     CREATE TABLE IF NOT EXISTS projects (
@@ -123,7 +123,7 @@ function ensureProjectColumns(connection: Database.Database) {
     return;
   }
 
-  const aiConfig = JSON.stringify(getDefaultProjectAiConfig());
+  const aiConfig = JSON.stringify(DEFAULT_PROJECT_AI_CONFIG);
 
   connection.exec(`
     ALTER TABLE projects

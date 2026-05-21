@@ -41,13 +41,11 @@ export interface ProjectAiConfig {
 }
 
 // 默认AI
-export function getDefaultProjectAiConfig(): ProjectAiConfig {
-  return {
-    apiKey: "",
-    baseUrl: "https://ark.cn-beijing.volces.com/api/coding/v3",
-    model: "ark-code-latest",
-  };
-}
+export const DEFAULT_PROJECT_AI_CONFIG = {
+  apiKey: "",
+  baseUrl: "",
+  model: "",
+} satisfies ProjectAiConfig;
 
 // PR信息
 // 实现:

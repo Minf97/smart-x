@@ -1,3 +1,4 @@
+import { SiGithub, SiGitlab } from "@icons-pack/react-simple-icons";
 import type { RequestProvider } from "@shared/types/project";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -36,6 +37,19 @@ function findRepoById(repos: RepoSelectOption[] | undefined, repoId: string) {
   return repos?.find((repo) => String(repo.id) === repoId) ?? null;
 }
 
+// 平台标识
+function ProviderLogo({
+  provider,
+  className,
+}: {
+  className?: string;
+  provider: RequestProvider;
+}) {
+  const Icon = provider === "gitlab" ? SiGitlab : SiGithub;
+
+  return <Icon aria-label={provider} className={cn("size-4", className)} />;
+}
+
 export function RepoSelectDropdown({
   allReposConnected,
   connected,
@@ -64,8 +78,14 @@ export function RepoSelectDropdown({
             type="button"
             variant="outline"
           >
-            <span className="truncate">
-              {selectedRepo?.fullName || t("dashboard.repoSelectPlaceholder")}
+            <span className="flex min-w-0 items-center gap-2">
+              <ProviderLogo
+                className="shrink-0 text-muted-foreground"
+                provider={provider}
+              />
+              <span className="truncate">
+                {selectedRepo?.fullName || t("dashboard.repoSelectPlaceholder")}
+              </span>
             </span>
             <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
@@ -83,16 +103,10 @@ export function RepoSelectDropdown({
                 key={repo.id}
                 onSelect={() => onChange(String(repo.id))}
               >
-                <div
-                  className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-transparent"
-                  )}
-                >
-                  <Check className="h-3 w-3" />
-                </div>
+                <ProviderLogo
+                  className="shrink-0 text-muted-foreground"
+                  provider={provider}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-sm">
                     {repo.fullName}
@@ -110,6 +124,12 @@ export function RepoSelectDropdown({
                     ) : null}
                   </div>
                 </div>
+                <Check
+                  className={cn(
+                    "size-3 text-primary",
+                    isSelected ? "opacity-100" : "opacity-0"
+                  )}
+                />
               </DropdownMenuItem>
             );
           })}

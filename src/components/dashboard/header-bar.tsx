@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { RotateCcw, Search } from "lucide-react";
+import { BookOpen, RotateCcw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { resetAuthSession } from "@/actions/auth-session";
@@ -17,6 +17,11 @@ export default function HeaderBar() {
   const { t } = useTranslation();
   const search = useAlertStore((state) => state.search);
   const setSearch = useAlertStore((state) => state.setSearch);
+
+  // 打开指引
+  function openOnboarding() {
+    navigate({ to: "/onboarding" });
+  }
 
   // 重置引导
   function handleResetOnboarding() {
@@ -43,6 +48,15 @@ export default function HeaderBar() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              aria-label="接入指引"
+              onClick={openOnboarding}
+              size="icon"
+              title="接入指引"
+              variant="ghost"
+            >
+              <BookOpen className="size-4" />
+            </Button>
             {inDevelopment ? (
               <Button
                 aria-label="重置新手流程"

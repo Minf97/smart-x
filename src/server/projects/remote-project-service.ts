@@ -1,7 +1,8 @@
-import type { ProjectRecord } from "@shared/types/project";
 import { createLogger } from "@shared/logger";
+import type { ProjectRecord } from "@shared/types/project";
 
 const TRAILING_SLASH_RE = /\/$/;
+const REMOTE_REQUEST_TIMEOUT_MS = 12_000;
 const logger = createLogger("remote-project-service");
 
 interface ErrorPayload {
@@ -49,6 +50,27 @@ async function readError(response: Response) {
   return "Remote request failed.";
 }
 
+// 请求异常
+function toBackendRequestError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError") {
+      return new Error(
+        "Remote project backend timed out. Check ALERTS_BACKEND_BASE_URL and network."
+      );
+    }
+
+    if (error.message === "fetch failed") {
+      return new Error(
+        "Remote project backend is unreachable. Check ALERTS_BACKEND_BASE_URL and network."
+      );
+    }
+
+    return error;
+  }
+
+  return new Error("Remote request failed.");
+}
+
 // 发后端请求
 async function requestBackend(path: string, init?: RequestInit) {
   const method = init?.method || "GET";
@@ -60,7 +82,16 @@ async function requestBackend(path: string, init?: RequestInit) {
     url,
   });
 
-  const response = await fetch(url, init);
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(REMOTE_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw toBackendRequestError(error);
+  }
 
   if (!response.ok) {
     logger.warn("request failed", {

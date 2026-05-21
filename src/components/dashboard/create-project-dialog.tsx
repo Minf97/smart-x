@@ -1,5 +1,5 @@
 import {
-  getDefaultProjectAiConfig,
+  DEFAULT_PROJECT_AI_CONFIG,
   type Project,
   type ProjectCreateProgress,
   type ProjectInput,
@@ -7,6 +7,7 @@ import {
   type RequestProvider,
 } from "@shared/types/project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CircleHelp } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import {
 } from "@/api/alerts";
 import { ProjectCreateProgressSection } from "@/components/dashboard/project-create-progress-section";
 import { RepoSelectDropdown } from "@/components/dashboard/repo-select-dropdown";
+import ExternalLink from "@/components/external-link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +37,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import { useCurrentProjectRepo } from "@/hooks/use-projects";
 import { useProjectStore } from "@/store/project-store";
@@ -50,7 +57,13 @@ const PROJECT_CREATE_QUERY_KEY = ["project-create"] as const;
 
 interface CreateProjectDialogProps {
   onOpenChange: (open: boolean) => void;
+  onProjectCreated?: (project: Project) => void;
   open: boolean;
+}
+
+interface CreateProjectInlineProps {
+  onCancel: () => void;
+  onProjectCreated: (project: Project) => void;
 }
 
 interface ProviderTexts {
@@ -80,11 +93,98 @@ interface ProviderStatusCardProps {
 }
 
 type RepoOption = GithubRepoItem | GitlabRepoItem;
+type CreateProjectSurface = "dialog" | "inline";
+
+// 区域标题
+function CreateProjectHeader({
+  description,
+  surface,
+  title,
+}: {
+  description: string;
+  surface: CreateProjectSurface;
+  title: string;
+}) {
+  if (surface === "dialog") {
+    return (
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <h3 className="font-medium text-sm">{title}</h3>
+      <p className="text-muted-foreground text-xs leading-5">{description}</p>
+    </div>
+  );
+}
+
+// 区域底部
+function CreateProjectFooter({
+  children,
+  surface,
+}: {
+  children: ReactNode;
+  surface: CreateProjectSurface;
+}) {
+  if (surface === "dialog") {
+    return <DialogFooter>{children}</DialogFooter>;
+  }
+
+  return <div className="flex justify-end gap-2">{children}</div>;
+}
+
+// 表单标题
+function CreateProjectFormHeader({
+  surface,
+  t,
+}: {
+  surface: CreateProjectSurface;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  if (surface === "inline") {
+    return null;
+  }
+
+  return (
+    <CreateProjectHeader
+      description={t("dashboard.createProjectHint")}
+      surface={surface}
+      title={t("dashboard.createProject")}
+    />
+  );
+}
+
+// 外层承载
+function CreateProjectShell({
+  children,
+  onClose,
+  open,
+  surface,
+}: {
+  children: ReactNode;
+  onClose: (open: boolean) => void;
+  open: boolean;
+  surface: CreateProjectSurface;
+}) {
+  if (surface === "inline") {
+    return <div className="space-y-4">{children}</div>;
+  }
+
+  return (
+    <Dialog onOpenChange={onClose} open={open}>
+      <DialogContent>{children}</DialogContent>
+    </Dialog>
+  );
+}
 
 // 默认值
 function getDefaultInput(provider: RequestProvider = "github"): ProjectInput {
   return {
-    aiConfig: getDefaultProjectAiConfig(),
+    aiConfig: { ...DEFAULT_PROJECT_AI_CONFIG },
     name: "",
     repoConfig: {
       baseBranch: "",
@@ -115,7 +215,7 @@ function applyRepoInput(
   repo: RepoOption
 ): ProjectInput {
   return {
-    aiConfig: getDefaultProjectAiConfig(),
+    aiConfig: { ...DEFAULT_PROJECT_AI_CONFIG },
     name: repo.name,
     repoConfig: {
       baseBranch: repo.defaultBranch,
@@ -173,19 +273,22 @@ function WebhookReadySection({
   onCopy,
   onDone,
   project,
+  surface,
   t,
 }: {
   onCopy: () => Promise<void>;
   onDone: () => void;
   project: Project;
+  surface: CreateProjectSurface;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
     <div className="space-y-4">
-      <DialogHeader>
-        <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
-        <DialogDescription>{t("dashboard.webhookReady")}</DialogDescription>
-      </DialogHeader>
+      <CreateProjectHeader
+        description={t("dashboard.webhookReady")}
+        surface={surface}
+        title={t("dashboard.createProject")}
+      />
 
       <div className="space-y-3">
         <label className="block space-y-1.5" htmlFor="project-webhook">
@@ -196,14 +299,14 @@ function WebhookReadySection({
         </label>
       </div>
 
-      <DialogFooter>
+      <CreateProjectFooter surface={surface}>
         <Button onClick={onCopy} type="button" variant="outline">
           {t("dashboard.copy")}
         </Button>
         <Button onClick={onDone} type="button">
           {t("dashboard.done")}
         </Button>
-      </DialogFooter>
+      </CreateProjectFooter>
     </div>
   );
 }
@@ -422,9 +525,11 @@ function useProjectCreateState({
   setGitlabFlow,
   setInput,
   setSelectedRepoId,
+  onProjectCreated,
   t,
 }: {
   addProject: (project: Project) => void;
+  onProjectCreated?: (project: Project) => void;
   pollCreateData: ProjectCreateProgress | undefined;
   pollCreateError: Error | null;
   queryClient: ReturnType<typeof useQueryClient>;
@@ -463,8 +568,10 @@ function useProjectCreateState({
     setInput(getDefaultInput());
     setSelectedRepoId("");
     setCreateSessionId(null);
+    onProjectCreated?.(project);
   }, [
     addProject,
+    onProjectCreated,
     pollCreateData,
     queryClient,
     setCreateSessionId,
@@ -581,6 +688,8 @@ function GitlabConnectionFields(input: {
     return null;
   }
 
+  const applicationsUrl = getGitlabApplicationsUrl(input.value);
+
   return (
     <div className="space-y-3">
       <label
@@ -603,8 +712,39 @@ function GitlabConnectionFields(input: {
         className="block space-y-1.5"
         htmlFor="create-project-gitlab-client-id"
       >
-        <span className="font-medium text-xs">
-          {input.t("dashboard.gitlabClientId")}
+        <span className="inline-flex items-center gap-1.5 font-medium text-xs">
+          <span>{input.t("dashboard.gitlabClientId")}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={input.t("dashboard.gitlabClientIdHelpLabel")}
+                className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+                type="button"
+              >
+                <CircleHelp className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              className="max-w-80 flex-col items-start leading-5"
+              side="top"
+            >
+              <span>{input.t("dashboard.gitlabClientIdHelp")}</span>
+              {applicationsUrl ? (
+                <ExternalLink
+                  className="font-medium text-background underline-offset-2"
+                  href={applicationsUrl}
+                  type="button"
+                >
+                  {input.t("dashboard.gitlabClientIdHelpLink")}
+                </ExternalLink>
+              ) : (
+                <span className="text-background/70">
+                  {input.t("dashboard.gitlabClientIdHelpMissingBaseUrl")}
+                </span>
+              )}
+              <span>{input.t("dashboard.gitlabClientIdHelpRedirect")}</span>
+            </TooltipContent>
+          </Tooltip>
         </span>
         <Input
           disabled={input.connected}
@@ -618,10 +758,25 @@ function GitlabConnectionFields(input: {
   );
 }
 
-export default function CreateProjectDialog({
+// 应用入口
+function getGitlabApplicationsUrl(baseUrl: string) {
+  const value = baseUrl.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  return `${value.replace(/\/+$/g, "")}/oauth/applications`;
+}
+
+function CreateProjectFlow({
+  onProjectCreated,
   onOpenChange,
   open,
-}: CreateProjectDialogProps) {
+  surface,
+}: CreateProjectDialogProps & {
+  surface: CreateProjectSurface;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const addProject = useProjectStore((state) => state.addProject);
@@ -813,6 +968,7 @@ export default function CreateProjectDialog({
     setGitlabFlow,
     setInput,
     setSelectedRepoId,
+    onProjectCreated,
     t,
   });
 
@@ -864,25 +1020,6 @@ export default function CreateProjectDialog({
     setGitlabFlow(null);
     setInput(getDefaultInput(nextProvider));
     setSelectedRepoId("");
-  }
-
-  // 改名称
-  function handleNameChange(value: string) {
-    setInput((current) => ({
-      ...current,
-      name: value,
-    }));
-  }
-
-  // 改基线
-  function handleBaseBranchChange(value: string) {
-    setInput((current) => ({
-      ...current,
-      repoConfig: {
-        ...current.repoConfig,
-        baseBranch: value,
-      },
-    }));
   }
 
   // 改 GitLab 地址
@@ -976,22 +1113,21 @@ export default function CreateProjectDialog({
         onCopy={handleCopyWebhook}
         onDone={handleDone}
         project={createdProject}
+        surface={surface}
         t={t}
       />
     );
   } else if (activeCreateProgress) {
     dialogBody = (
-      <ProjectCreateProgressSection progress={activeCreateProgress} />
+      <ProjectCreateProgressSection
+        progress={activeCreateProgress}
+        surface={surface}
+      />
     );
   } else {
     dialogBody = (
       <form className="space-y-4" onSubmit={handleSubmit}>
-        <DialogHeader>
-          <DialogTitle>{t("dashboard.createProject")}</DialogTitle>
-          <DialogDescription>
-            {t("dashboard.createProjectHint")}
-          </DialogDescription>
-        </DialogHeader>
+        <CreateProjectFormHeader surface={surface} t={t} />
 
         <div className="space-y-3">
           <label
@@ -1050,43 +1186,21 @@ export default function CreateProjectDialog({
             selectedRepoId={selectedRepoId}
           />
 
-          <label className="block space-y-1.5" htmlFor="create-project-name">
-            <span className="font-medium text-xs">
-              {t("dashboard.projectName")}
-            </span>
-            <Input
-              id="create-project-name"
-              onChange={(event) => handleNameChange(event.target.value)}
-              placeholder={t("dashboard.projectNamePlaceholder")}
-              value={input.name}
-            />
-          </label>
-
-          <label
-            className="block space-y-1.5"
-            htmlFor="create-project-base-branch"
-          >
-            <span className="font-medium text-xs">
-              {t("dashboard.baseBranch")}
-            </span>
-            <Input
-              id="create-project-base-branch"
-              onChange={(event) => handleBaseBranchChange(event.target.value)}
-              placeholder={t("dashboard.baseBranchPlaceholder")}
-              value={input.repoConfig.baseBranch}
-            />
-          </label>
-
           {selectedRepoItem ? (
-            <p className="text-muted-foreground text-xs">
-              {selectedRepoItem.private
-                ? t("dashboard.privateRepo")
-                : t("dashboard.publicRepo")}
-            </p>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
+              <p>{t("dashboard.projectAutoFieldsHint")}</p>
+              <p className="mt-1">
+                {selectedRepoItem.private
+                  ? t("dashboard.privateRepo")
+                  : t("dashboard.publicRepo")}
+                {" · "}
+                {t("dashboard.baseBranch")}: {selectedRepoItem.defaultBranch}
+              </p>
+            </div>
           ) : null}
         </div>
 
-        <DialogFooter>
+        <CreateProjectFooter surface={surface}>
           <Button
             disabled={startCreateMutation.isPending}
             onClick={() => onOpenChange(false)}
@@ -1098,14 +1212,14 @@ export default function CreateProjectDialog({
           <Button disabled={disabled} type="submit">
             {t("dashboard.connect")}
           </Button>
-        </DialogFooter>
+        </CreateProjectFooter>
       </form>
     );
   }
 
   return (
-    <Dialog
-      onOpenChange={(nextOpen) => {
+    <CreateProjectShell
+      onClose={(nextOpen) => {
         if (!nextOpen) {
           resetState();
         }
@@ -1113,8 +1227,31 @@ export default function CreateProjectDialog({
         onOpenChange(nextOpen);
       }}
       open={open}
+      surface={surface}
     >
-      <DialogContent>{dialogBody}</DialogContent>
-    </Dialog>
+      {dialogBody}
+    </CreateProjectShell>
   );
+}
+
+export function CreateProjectInline({
+  onCancel,
+  onProjectCreated,
+}: CreateProjectInlineProps) {
+  return (
+    <CreateProjectFlow
+      onOpenChange={(open) => {
+        if (!open) {
+          onCancel();
+        }
+      }}
+      onProjectCreated={onProjectCreated}
+      open
+      surface="inline"
+    />
+  );
+}
+
+export default function CreateProjectDialog(props: CreateProjectDialogProps) {
+  return <CreateProjectFlow {...props} surface="dialog" />;
 }

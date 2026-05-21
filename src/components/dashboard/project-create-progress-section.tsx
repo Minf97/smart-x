@@ -1,7 +1,4 @@
-import {
-  PROJECT_CREATE_STEP_VALUES,
-  type ProjectCreateProgress,
-} from "@shared/types/project";
+import type { ProjectCreateProgress } from "@shared/types/project";
 import { useTranslation } from "react-i18next";
 import {
   DialogDescription,
@@ -28,91 +25,55 @@ function getCreateStepText(
   return stepMap[step];
 }
 
-// 状态色
-function getCreateStepTone(input: {
-  isActive: boolean;
-  isDone: boolean;
-  isFailed: boolean;
-}) {
-  if (input.isFailed) {
-    return "text-destructive";
-  }
-
-  if (input.isActive) {
-    return "text-primary";
-  }
-
-  if (input.isDone) {
-    return "text-foreground";
-  }
-
-  return "text-muted-foreground";
-}
-
 interface ProjectCreateProgressSectionProps {
   progress: ProjectCreateProgress;
+  surface?: "dialog" | "inline";
 }
 
 // 创建进度
 export function ProjectCreateProgressSection({
   progress,
+  surface = "dialog",
 }: ProjectCreateProgressSectionProps) {
   const { t } = useTranslation();
-  const activeIndex = PROJECT_CREATE_STEP_VALUES.indexOf(progress.step);
+  const stepText = getCreateStepText(progress.step, t);
 
   return (
     <div className="space-y-4">
-      <DialogHeader>
-        <DialogTitle>{t("dashboard.createProjectProgressTitle")}</DialogTitle>
-        <DialogDescription>
-          {t("dashboard.createProjectProgressHint")}
-        </DialogDescription>
-      </DialogHeader>
+      {surface === "dialog" ? (
+        <DialogHeader>
+          <DialogTitle>{t("dashboard.createProjectProgressTitle")}</DialogTitle>
+          <DialogDescription>
+            {t("dashboard.createProjectProgressHint")}
+          </DialogDescription>
+        </DialogHeader>
+      ) : (
+        <div className="space-y-1">
+          <h3 className="font-medium text-sm">
+            {t("dashboard.createProjectProgressTitle")}
+          </h3>
+          <p className="text-muted-foreground text-xs leading-5">
+            {t("dashboard.createProjectProgressHint")}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-3">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">{progress.step}</span>
-            <span>{progress.progress}%</span>
+        <div className="space-y-3 rounded-lg border bg-card p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate font-medium text-sm">
+              {stepText}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              {progress.progress}%
+            </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full bg-primary transition-all"
+              className="h-full bg-primary transition-all duration-500 ease-out"
               style={{ width: `${progress.progress}%` }}
             />
           </div>
-          <p className="text-muted-foreground text-xs">
-            {getCreateStepText(progress.step, t)}
-          </p>
-        </div>
-
-        <div className="space-y-2 rounded-md border p-3">
-          {PROJECT_CREATE_STEP_VALUES.map((step, index) => {
-            const isDone =
-              index < activeIndex || progress.status === "completed";
-            const isActive =
-              step === progress.step && progress.status === "pending";
-            const isFailed =
-              step === progress.step && progress.status === "failed";
-
-            return (
-              <div
-                className="flex items-center justify-between gap-3 text-xs"
-                key={step}
-              >
-                <span className="min-w-0 truncate font-mono">{step}</span>
-                <span
-                  className={getCreateStepTone({
-                    isActive,
-                    isDone,
-                    isFailed,
-                  })}
-                >
-                  {getCreateStepText(step, t)}
-                </span>
-              </div>
-            );
-          })}
         </div>
 
         {progress.errorMessage ? (

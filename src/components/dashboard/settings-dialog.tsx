@@ -266,7 +266,14 @@ export default function SettingsDialog({
             </label>
 
             <div className="space-y-3 rounded-md border p-3">
-              <p className="font-medium text-xs">{t("dashboard.aiSettings")}</p>
+              <div>
+                <p className="font-medium text-xs">
+                  {t("dashboard.aiSettings")}
+                </p>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  {t("dashboard.aiSettingsHint")}
+                </p>
+              </div>
 
               <label
                 className="block space-y-1.5"

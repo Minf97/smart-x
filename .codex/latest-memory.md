@@ -1,27 +1,6 @@
-# 压缩记忆
+# Webhook Step 进入 Dashboard
 
-- 日期：2026-05-16
-- 主题：Onboarding 滚动修复
-
-## 目标
-
-- 修复 onboarding 页面内容超出窗口后无法滚动、顶部和底部被裁剪的问题。
-
-## 改动
-
-- `src/routes/onboarding.tsx`
-  - 页面根节点改为 `h-full overflow-y-auto`，由 onboarding 自己承担滚动。
-  - 移除垂直居中容器，改用顶部可见的常规页面流。
-  - 导出 `OnboardingPage`，方便单元测试覆盖布局。
-- `src/tests/unit/onboarding-layout.test.tsx`
-  - 新增布局单测，断言页面根节点保留滚动能力。
-
-## 验证
-
-- `npm test -- onboarding-layout.test.tsx`
-- `npx ultracite check src/routes/onboarding.tsx src/tests/unit/onboarding-layout.test.tsx`
-- `npm run check` 仍失败，失败项来自既有 backend/shared/dashboard/test 文件。
-
-## 待办
-
-- 如后续 onboarding 内容继续增加，应拆出独立子组件，避免页面文件再次超过 300 行。
+- 目标：补齐 onboarding 最后一步的收口，并允许用户在 Dashboard 随时回到接入指引。
+- 改动：Webhook step 增加“进入 Dashboard”，点击后 `completeOnboarding()` 并跳转 `/dashboard`；已有项目重新打开 onboarding 时，AI 已配置则直接进入 webhook step，否则进入 AI Settings；Dashboard header 增加“接入指引”入口跳转 `/onboarding`。
+- 验证：`npm run test -- src/tests/unit/onboarding-layout.test.tsx src/tests/unit/dashboard-header-layout.test.tsx src/tests/unit/create-project-dialog-layout.test.tsx` 通过；本次 touched 文件 `biome check` 通过；`npm --prefix backend run check` 通过；`git diff --check` 通过。
+- 待办：无。

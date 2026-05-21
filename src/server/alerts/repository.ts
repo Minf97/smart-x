@@ -12,7 +12,7 @@ import type {
 import { ITEM_STATUS_VALUES } from "@shared/types/alert";
 import {
   type CodeRequest,
-  getDefaultProjectAiConfig,
+  DEFAULT_PROJECT_AI_CONFIG,
   type Project,
   type ProjectAiConfig,
   type ProjectInput,
@@ -70,7 +70,9 @@ interface StoredProject extends Omit<Project, "repoConfig"> {
   repoConfig: StoredProjectRepoConfig;
 }
 
-const STATUS_FEEDBACK_ACTIONS: Partial<Record<ItemStatus, FeedbackSignalAction>> = {
+const STATUS_FEEDBACK_ACTIONS: Partial<
+  Record<ItemStatus, FeedbackSignalAction>
+> = {
   dismiss: "dismiss",
   done: "done",
   duplicate: "duplicate",
@@ -114,7 +116,7 @@ const MOCK_UPDATED_AT = "2026-04-13T08:30:00.000Z";
 // 项目种子
 const defaultProjects = [
   {
-    aiConfig: getDefaultProjectAiConfig(),
+    aiConfig: { ...DEFAULT_PROJECT_AI_CONFIG },
     createdAt: MOCK_CREATED_AT,
     id: "client",
     name: "Client App",
@@ -133,7 +135,7 @@ const defaultProjects = [
     webhookUrl: "https://mock.local/ingest/client",
   },
   {
-    aiConfig: getDefaultProjectAiConfig(),
+    aiConfig: { ...DEFAULT_PROJECT_AI_CONFIG },
     createdAt: MOCK_CREATED_AT,
     id: "server",
     name: "Server API",
@@ -415,6 +417,15 @@ at updateComponent (react-dom.js:456:23)`,
   title: string;
 }>;
 
+// 仓库错误
+function toManagedRepoError(error: unknown) {
+  return new Error(
+    `Failed to prepare managed repository. ${
+      error instanceof Error ? error.message : "Unknown git error."
+    }`
+  );
+}
+
 const defaultAlerts = defaultAlertInputs.map(createMockItem);
 
 // 延迟器
@@ -611,7 +622,7 @@ function toProject(row: ProjectRow): Project {
 function toStoredProject(row: ProjectRow): StoredProject {
   // 兼容旧项目历史数据里没有 baseUrl / model 的情况。
   const aiConfig = parseJson<ProjectAiConfig>(row.aiConfigJson);
-  const defaultAiConfig = getDefaultProjectAiConfig();
+  const defaultAiConfig = DEFAULT_PROJECT_AI_CONFIG;
 
   return {
     aiConfig: {
@@ -1060,11 +1071,7 @@ export async function createProject(input: ProjectInput) {
       token: nextProject.repoConfig.token,
     });
   } catch (error) {
-    throw new Error(
-      `Failed to clone managed repository. ${
-        error instanceof Error ? error.message : "Unknown git error."
-      }`
-    );
+    throw toManagedRepoError(error);
   }
 
   db.insert(projectsTable).values(toProjectRow(nextProject, rows.length)).run();
@@ -1133,14 +1140,18 @@ async function runCreateProjectSession(sessionId: string, input: ProjectInput) {
     } satisfies StoredProject;
 
     setCreateProjectProgress(sessionId, "cloneManagedRepo");
-    await ensureManagedRepo({
-      baseBranch: nextProject.repoConfig.baseBranch,
-      instanceUrl: nextProject.repoConfig.instanceUrl,
-      provider: nextProject.repoConfig.provider,
-      repoName: nextProject.repoConfig.repoName,
-      repoPath: nextProject.repoConfig.managedRepoPath,
-      token: nextProject.repoConfig.token,
-    });
+    try {
+      await ensureManagedRepo({
+        baseBranch: nextProject.repoConfig.baseBranch,
+        instanceUrl: nextProject.repoConfig.instanceUrl,
+        provider: nextProject.repoConfig.provider,
+        repoName: nextProject.repoConfig.repoName,
+        repoPath: nextProject.repoConfig.managedRepoPath,
+        token: nextProject.repoConfig.token,
+      });
+    } catch (error) {
+      throw toManagedRepoError(error);
+    }
 
     setCreateProjectProgress(sessionId, "saveProject");
     const rows = listProjectRows();
@@ -1308,7 +1319,7 @@ export async function createAlertRequest(
             repoPath: project.repoConfig.managedRepoPath,
           });
         },
-        onProgress: async (step) => {
+        onProgress: (step) => {
           if (options.sessionId) {
             setCodeRequestProgress(options.sessionId, step);
           }

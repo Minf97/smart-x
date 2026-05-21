@@ -1,6 +1,8 @@
 import type { ProjectValidationResult } from "@shared/types/project";
 import type { GithubAuthState, GithubRepoItem } from "@/types/github";
 
+const GITHUB_REQUEST_TIMEOUT_MS = 12_000;
+
 interface GithubRepoResponse {
   default_branch: string;
   full_name: string;
@@ -60,19 +62,43 @@ async function readGithubJson<T>(response: Response) {
   return data as T;
 }
 
+// 请求异常
+function toGithubRequestError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError") {
+      return new Error("GitHub timed out. Check GitHub network access.");
+    }
+
+    if (error.message === "fetch failed") {
+      return new Error("GitHub is unreachable. Check GitHub network access.");
+    }
+
+    return error;
+  }
+
+  return new Error("GitHub request failed.");
+}
+
 // 读 GitHub
 async function requestGithub<T>(options: GithubRequestOptions) {
-  const response = await fetch(`https://api.github.com${options.path}`, {
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${options.token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "electron-shadcn",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    method: options.method || "GET",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`https://api.github.com${options.path}`, {
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${options.token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "electron-shadcn",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      method: options.method || "GET",
+      signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw toGithubRequestError(error);
+  }
 
   return readGithubJson<T>(response);
 }

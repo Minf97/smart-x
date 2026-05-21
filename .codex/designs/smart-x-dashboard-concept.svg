@@ -1,0 +1,123 @@
+<svg width="1440" height="960" viewBox="0 0 1440 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#1B2A32" flood-opacity="0.12"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" stroke="#E5E7EA" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1440" height="960" fill="#F4F6F5"/>
+  <rect width="1440" height="960" fill="url(#grid)" opacity="0.32"/>
+  <rect x="72" y="56" width="1296" height="848" rx="24" fill="#FBFCFB" filter="url(#softShadow)"/>
+
+  <rect x="72" y="56" width="1296" height="64" rx="24" fill="#111C20"/>
+  <path d="M72 96H1368V120H72V96Z" fill="#111C20"/>
+  <circle cx="106" cy="88" r="6" fill="#FF6B61"/>
+  <circle cx="128" cy="88" r="6" fill="#FFBF48"/>
+  <circle cx="150" cy="88" r="6" fill="#43C478"/>
+  <text x="188" y="94" fill="#EFF4F1" font-family="Geist, ui-sans-serif, sans-serif" font-size="18" font-weight="650">Smart-X</text>
+  <text x="287" y="94" fill="#8DA0A5" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">Project Intelligence Console</text>
+  <rect x="1110" y="74" width="120" height="28" rx="14" fill="#1E3036"/>
+  <circle cx="1130" cy="88" r="4" fill="#43C478"/>
+  <text x="1142" y="93" fill="#DCE7E3" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Live sync</text>
+  <rect x="1244" y="74" width="84" height="28" rx="14" fill="#E8F8EF"/>
+  <text x="1262" y="93" fill="#17663B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="650">Deploy</text>
+
+  <rect x="72" y="120" width="236" height="784" fill="#EEF2F0"/>
+  <text x="104" y="168" fill="#53666A" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">WORKSPACE</text>
+  <rect x="96" y="190" width="188" height="52" rx="12" fill="#FFFFFF"/>
+  <text x="116" y="213" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="700">smart-x/webhook</text>
+  <text x="116" y="232" fill="#728287" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">main · GitHub</text>
+  <rect x="96" y="270" width="188" height="40" rx="10" fill="#111C20"/>
+  <rect x="112" y="284" width="12" height="12" rx="3" fill="#43C478"/>
+  <text x="138" y="296" fill="#FFFFFF" font-family="Geist, ui-sans-serif, sans-serif" font-size="13" font-weight="650">Dashboard</text>
+  <text x="138" y="350" fill="#52636A" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">Requests</text>
+  <text x="138" y="404" fill="#52636A" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">Analysis stack</text>
+  <text x="138" y="458" fill="#52636A" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">Webhook</text>
+  <text x="138" y="512" fill="#52636A" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">AI Settings</text>
+  <rect x="96" y="790" width="188" height="72" rx="14" fill="#FFFFFF"/>
+  <text x="116" y="818" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="13" font-weight="700">今日消耗</text>
+  <text x="116" y="842" fill="#728287" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">2.8k / 10k credits</text>
+  <rect x="116" y="852" width="144" height="5" rx="2.5" fill="#E2E7E4"/>
+  <rect x="116" y="852" width="58" height="5" rx="2.5" fill="#43C478"/>
+
+  <text x="348" y="170" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="30" font-weight="760">项目风险工作台</text>
+  <text x="348" y="198" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="14">聚合 webhook、AI 分析、请求状态与修复建议，给维护者一屏决策。</text>
+  <rect x="1120" y="150" width="178" height="40" rx="12" fill="#111C20"/>
+  <text x="1151" y="175" fill="#FFFFFF" font-family="Geist, ui-sans-serif, sans-serif" font-size="13" font-weight="700">Run analysis</text>
+  <rect x="1310" y="150" width="24" height="40" rx="12" fill="#DDE5E1"/>
+
+  <rect x="348" y="230" width="220" height="128" rx="16" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="372" y="266" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">OPEN ALERTS</text>
+  <text x="372" y="306" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="42" font-weight="760">18</text>
+  <path d="M450 323C486 290 513 312 544 280" stroke="#FF6B61" stroke-width="3" stroke-linecap="round"/>
+  <text x="372" y="338" fill="#B34A44" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">+4 since last sync</text>
+  <rect x="592" y="230" width="220" height="128" rx="16" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="616" y="266" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">MERGE SAFETY</text>
+  <text x="616" y="306" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="42" font-weight="760">92%</text>
+  <rect x="616" y="326" width="150" height="8" rx="4" fill="#E2E7E4"/>
+  <rect x="616" y="326" width="138" height="8" rx="4" fill="#43C478"/>
+  <rect x="836" y="230" width="220" height="128" rx="16" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="860" y="266" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">AVG RESPONSE</text>
+  <text x="860" y="306" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="42" font-weight="760">1.7m</text>
+  <text x="860" y="338" fill="#4D6E89" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">webhook to summary</text>
+  <rect x="1080" y="230" width="220" height="128" rx="16" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="1104" y="266" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">COST WINDOW</text>
+  <text x="1104" y="306" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="42" font-weight="760">28%</text>
+  <text x="1104" y="338" fill="#17663B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">within project limit</text>
+
+  <rect x="348" y="390" width="620" height="372" rx="18" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="376" y="430" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="18" font-weight="740">请求队列</text>
+  <text x="376" y="456" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">按风险、影响范围和等待时间排序</text>
+  <rect x="812" y="414" width="118" height="30" rx="15" fill="#EEF2F0"/>
+  <text x="837" y="434" fill="#304349" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="650">High first</text>
+
+  <rect x="376" y="486" width="548" height="58" rx="12" fill="#FFF4F1"/>
+  <rect x="396" y="506" width="18" height="18" rx="5" fill="#FF6B61"/>
+  <text x="430" y="511" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">PR #284 · billing webhook crash</text>
+  <text x="430" y="532" fill="#7A5A54" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">runtime path · 6 files · owner needed</text>
+  <text x="840" y="522" fill="#B34A44" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">High</text>
+  <rect x="376" y="558" width="548" height="58" rx="12" fill="#F7FAF8"/>
+  <rect x="396" y="578" width="18" height="18" rx="5" fill="#FFBF48"/>
+  <text x="430" y="583" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">Issue #91 · onboarding copy drift</text>
+  <text x="430" y="604" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">localized text · 2 files · ready</text>
+  <text x="824" y="594" fill="#8F6818" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">Medium</text>
+  <rect x="376" y="630" width="548" height="58" rx="12" fill="#F7FAF8"/>
+  <rect x="396" y="650" width="18" height="18" rx="5" fill="#43C478"/>
+  <text x="430" y="655" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">PR #279 · cache sync cleanup</text>
+  <text x="430" y="676" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">state flow · tests passed · mergeable</text>
+  <text x="846" y="666" fill="#17663B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="700">Low</text>
+  <rect x="376" y="704" width="548" height="28" rx="8" fill="#EEF2F0"/>
+  <text x="574" y="723" fill="#53666A" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Load 15 more requests</text>
+
+  <rect x="996" y="390" width="304" height="372" rx="18" fill="#FFFFFF" stroke="#E0E6E2"/>
+  <text x="1024" y="430" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="18" font-weight="740">AI 分析摘要</text>
+  <text x="1024" y="456" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="13">当前选中：PR #284</text>
+  <rect x="1024" y="488" width="248" height="80" rx="14" fill="#F4F8F6"/>
+  <text x="1044" y="518" fill="#152429" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">风险原因</text>
+  <text x="1044" y="542" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Webhook handler 未覆盖空 payload，</text>
+  <text x="1044" y="560" fill="#66777B" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">会阻断 billing 事件写回。</text>
+  <rect x="1024" y="586" width="248" height="86" rx="14" fill="#111C20"/>
+  <text x="1044" y="616" fill="#E8F8EF" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">建议动作</text>
+  <text x="1044" y="642" fill="#BFD0D1" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">补单测覆盖主路径，并直接暴露</text>
+  <text x="1044" y="660" fill="#BFD0D1" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">解析错误给调用层。</text>
+  <rect x="1024" y="698" width="114" height="34" rx="10" fill="#43C478"/>
+  <text x="1051" y="720" fill="#0D2517" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="750">Accept</text>
+  <rect x="1150" y="698" width="122" height="34" rx="10" fill="#EEF2F0"/>
+  <text x="1179" y="720" fill="#304349" font-family="Geist, ui-sans-serif, sans-serif" font-size="12" font-weight="650">Discuss</text>
+
+  <rect x="348" y="790" width="952" height="72" rx="18" fill="#152429"/>
+  <text x="376" y="820" fill="#EAF1EE" font-family="Geist, ui-sans-serif, sans-serif" font-size="14" font-weight="720">Webhook pipeline</text>
+  <text x="376" y="844" fill="#AFC0C2" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Received</text>
+  <circle cx="510" cy="838" r="8" fill="#43C478"/>
+  <path d="M524 838H628" stroke="#496168" stroke-width="2"/>
+  <text x="646" y="844" fill="#AFC0C2" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Parsed</text>
+  <circle cx="760" cy="838" r="8" fill="#43C478"/>
+  <path d="M774 838H878" stroke="#496168" stroke-width="2"/>
+  <text x="896" y="844" fill="#AFC0C2" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Analyzed</text>
+  <circle cx="1032" cy="838" r="8" fill="#FFBF48"/>
+  <path d="M1046 838H1150" stroke="#496168" stroke-width="2"/>
+  <text x="1168" y="844" fill="#AFC0C2" font-family="Geist, ui-sans-serif, sans-serif" font-size="12">Action queued</text>
+</svg>

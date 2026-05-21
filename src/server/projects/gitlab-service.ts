@@ -1,6 +1,8 @@
 import type { ProjectValidationResult } from "@shared/types/project";
 import type { GitlabAuthState, GitlabRepoItem } from "@/types/gitlab";
 
+const GITLAB_REQUEST_TIMEOUT_MS = 12_000;
+
 interface GitlabProjectResponse {
   default_branch: string | null;
   id: number;
@@ -75,23 +77,47 @@ async function readGitlabJson<T>(response: Response) {
   return data as T;
 }
 
+// 请求异常
+function toGitlabRequestError(error: unknown) {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError") {
+      return new Error("GitLab timed out. Check GitLab URL and network.");
+    }
+
+    if (error.message === "fetch failed") {
+      return new Error("GitLab is unreachable. Check GitLab URL and network.");
+    }
+
+    return error;
+  }
+
+  return new Error("GitLab request failed.");
+}
+
 // 发GitLab包
 async function requestGitlab<T>(options: GitlabRequestOptions) {
-  const response = await fetch(buildGitlabUrl(options.baseUrl, options.path), {
-    body: options.body ? new URLSearchParams(options.body) : undefined,
-    headers: {
-      Authorization: `Bearer ${options.token}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    method: options.method || "GET",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(buildGitlabUrl(options.baseUrl, options.path), {
+      body: options.body ? new URLSearchParams(options.body) : undefined,
+      headers: {
+        Authorization: `Bearer ${options.token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      method: options.method || "GET",
+      signal: AbortSignal.timeout(GITLAB_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw toGitlabRequestError(error);
+  }
 
   return readGitlabJson<T>(response);
 }
 
 // 校验仓库
 export async function validateGitlabProject(
-  repoName: string,
+  _repoName: string,
   baseBranch: string,
   token: string,
   baseUrl: string,

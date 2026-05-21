@@ -3,23 +3,39 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
+  Bot,
   Clipboard,
   GitBranch,
-  Play,
-  RadioTower,
   Send,
+  Webhook,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { completeOnboarding, isSignedIn } from "@/actions/auth-session";
 import { copyText } from "@/actions/shell";
 import { syncAlerts } from "@/api/alerts";
-import CreateProjectDialog from "@/components/dashboard/create-project-dialog";
+import { AiSettingsForm } from "@/components/dashboard/ai-settings-form";
+import { CreateProjectInline } from "@/components/dashboard/create-project-dialog";
+import { StepCard } from "@/components/onboarding/step-card";
 import { Button } from "@/components/ui/button";
 import { ALERTS_QUERY_KEY } from "@/hooks/use-alerts";
 import { useProjects } from "@/hooks/use-projects";
 
-type AlertSetupMode = "existing" | "sdk" | "demo";
+type OnboardingStep = "project" | "createProject" | "ai" | "webhook";
+
+const STEP_LABELS: Record<OnboardingStep, string> = {
+  ai: "Step 3 / 4",
+  createProject: "Step 2 / 4",
+  project: "Step 1 / 4",
+  webhook: "Step 4 / 4",
+};
+const STEP_PROGRESS: Record<OnboardingStep, number> = {
+  ai: 75,
+  createProject: 50,
+  project: 25,
+  webhook: 100,
+};
+
 // 构建测试
 function buildTestAlertPayload() {
   return {
@@ -66,37 +82,23 @@ initSmartXAlert({
 // .env
 SMART_X_WEBHOOK_URL=${webhookUrl}`;
 }
-// 模式标题
-function getModeTitle(mode: AlertSetupMode) {
-  if (mode === "sdk") {
-    return "我还没有报警系统";
-  }
 
-  if (mode === "demo") {
-    return "我只是想先看看";
-  }
-
-  return "我已经有报警系统";
-}
-// 模式描述
-function getModeDescription(mode: AlertSetupMode) {
-  if (mode === "sdk") {
-    return "先复制 env 和 SDK 片段，把 User Project 的运行时错误送进平台。";
-  }
-
-  if (mode === "demo") {
-    return "下一阶段会提供可点击触发 Alert 的 demo site。现在先进入工作台查看主界面。";
-  }
-
-  return "把现有监控、飞书机器人或后端服务再发一份 webhook 到平台。";
-}
 // 页面主体
 export function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentProject } = useProjects();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [mode, setMode] = useState<AlertSetupMode>("existing");
+  const [step, setStep] = useState<OnboardingStep>(() => {
+    if (!currentProject) {
+      return "project";
+    }
+
+    return currentProject.aiConfig.apiKey.trim() &&
+      currentProject.aiConfig.baseUrl.trim() &&
+      currentProject.aiConfig.model.trim()
+      ? "webhook"
+      : "ai";
+  });
   const webhookUrl = currentProject?.webhookUrl ?? "";
   const sdkSnippet = useMemo(() => getSdkSnippet(webhookUrl), [webhookUrl]);
   const testAlertMutation = useMutation({
@@ -122,10 +124,22 @@ export function OnboardingPage() {
       navigate({ to: "/login" });
     }
   }, [navigate]);
-  // 进入工作台
-  function enterDashboard() {
-    completeOnboarding();
-    navigate({ to: "/dashboard" });
+
+  useEffect(() => {
+    if (currentProject && step === "project") {
+      setStep(
+        currentProject.aiConfig.apiKey.trim() &&
+          currentProject.aiConfig.baseUrl.trim() &&
+          currentProject.aiConfig.model.trim()
+          ? "webhook"
+          : "ai"
+      );
+    }
+  }, [currentProject, step]);
+
+  // 打开新建
+  function openCreateProject() {
+    setStep("createProject");
   }
 
   // 复制文本
@@ -134,162 +148,137 @@ export function OnboardingPage() {
     toast.success(message);
   }
 
+  // 进入工作台
+  function enterDashboard() {
+    completeOnboarding();
+    navigate({ to: "/dashboard" });
+  }
+
   return (
-    <div className="h-full overflow-y-auto bg-background px-4 py-6 sm:px-6">
-      <div className="mx-auto w-full max-w-5xl pb-6">
-        <div className="mb-8 flex items-end justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-md border px-2 py-1 font-mono text-[0.68rem] text-muted-foreground uppercase tracking-[0.24em]">
-              <RadioTower className="size-3" />
-              Onboarding
-            </div>
-            <h1 className="mt-4 max-w-2xl font-semibold text-3xl tracking-normal">
-              先跑通一条 Alert，再进入工作台
-            </h1>
-            <p className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6">
-              连接 GitHub 或 GitLab，选择是否已有报警，再复制 webhook 或 SDK
-              片段。完成后发送一条测试 Alert，确认 Remote Backend 到 Desktop
-              Agent 的接入链路可用。
-            </p>
-          </div>
-          <Button
-            className="hidden h-9 md:inline-flex"
-            onClick={enterDashboard}
-          >
-            稍后设置
-            <ArrowRight className="size-4" />
-          </Button>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <button
-            className="group rounded-lg border bg-card p-6 text-left transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/5"
-            onClick={() => setCreateOpen(true)}
-            type="button"
-          >
-            <div className="flex size-10 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-              <GitBranch className="size-5" />
-            </div>
-            <h2 className="mt-5 font-semibold text-xl">接入我的项目</h2>
-            <p className="mt-2 text-muted-foreground text-sm leading-6">
-              连接代码仓库，拿到 webhook，把 User Project 的错误接进平台。
-            </p>
-            <span className="mt-6 inline-flex items-center gap-2 font-medium text-sm">
-              连接代码平台
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-            </span>
-          </button>
-
-          <button
-            className="group rounded-lg border bg-card p-6 text-left transition-colors hover:border-blue-500/50 hover:bg-blue-500/5"
-            onClick={enterDashboard}
-            type="button"
-          >
-            <div className="flex size-10 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-300">
-              <Play className="size-5" />
-            </div>
-            <h2 className="mt-5 font-semibold text-xl">先看演示</h2>
-            <p className="mt-2 text-muted-foreground text-sm leading-6">
-              用 demo Alert 预览报错、Analysis、修复建议和 Code Request。
-            </p>
-            <span className="mt-6 inline-flex items-center gap-2 font-medium text-sm">
-              Phase D 完成此路径
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-            </span>
-          </button>
-        </div>
-
-        <section className="mt-6 rounded-lg border bg-card p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="font-semibold text-xl">选择 Alert 接入方式</h2>
-              <p className="mt-2 text-muted-foreground text-sm">
-                这一步决定你从哪里把错误送进平台。
-              </p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {(["existing", "sdk", "demo"] as const).map((item) => (
-                <Button
-                  key={item}
-                  onClick={() => setMode(item)}
-                  type="button"
-                  variant={mode === item ? "default" : "outline"}
-                >
-                  {getModeTitle(item)}
+    <div className="flex h-full items-center overflow-y-auto bg-background px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-5xl">
+        <div>
+          {step === "project" ? (
+            <StepCard
+              action={
+                <Button onClick={openCreateProject} type="button">
+                  新建项目
+                  <ArrowRight className="size-4" />
                 </Button>
-              ))}
-            </div>
-          </div>
+              }
+              description="打开 create new project dialog 后，只需要选择平台和 repo。Project name 会使用 repo 名称，base branch 会使用仓库默认分支。"
+              icon={<GitBranch className="size-4" />}
+              key="project"
+              progress={STEP_PROGRESS.project}
+              stepLabel={STEP_LABELS.project}
+              title="新建项目"
+            />
+          ) : null}
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-md border bg-muted/30 p-4">
-              <p className="font-medium text-sm">{getModeTitle(mode)}</p>
-              <p className="mt-2 text-muted-foreground text-sm leading-6">
-                {getModeDescription(mode)}
-              </p>
+          {step === "createProject" ? (
+            <StepCard
+              description="选择代码平台和 repo。项目名称会使用 repo 名称，base branch 会使用仓库默认分支。"
+              icon={<GitBranch className="size-4" />}
+              key="create-project"
+              progress={STEP_PROGRESS.createProject}
+              stepLabel={STEP_LABELS.createProject}
+              title="连接代码仓库"
+            >
+              <CreateProjectInline
+                onCancel={() => setStep("project")}
+                onProjectCreated={() => setStep("ai")}
+              />
+            </StepCard>
+          ) : null}
+
+          {step === "ai" ? (
+            <StepCard
+              description="AI Settings 是项目级配置。不同项目可以填写不同的 Base URL、Model 和 API Key，方便按项目追踪 AI 用量。"
+              icon={<Bot className="size-4" />}
+              key="ai"
+              progress={STEP_PROGRESS.ai}
+              stepLabel={STEP_LABELS.ai}
+              title="AI Settings"
+            >
               {currentProject ? (
-                <div className="mt-4 space-y-3">
-                  <div>
+                <div className="space-y-3">
+                  <p className="rounded-md bg-muted/40 px-3 py-2 text-muted-foreground text-xs">
+                    当前项目：{currentProject.name}
+                  </p>
+                  <AiSettingsForm
+                    onSaved={() => setStep("webhook")}
+                    preferEnv
+                    project={currentProject}
+                    submitLabel="保存并继续"
+                  />
+                </div>
+              ) : null}
+            </StepCard>
+          ) : null}
+
+          {step === "webhook" ? (
+            <StepCard
+              action={
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    disabled={!webhookUrl}
+                    onClick={() => copyValue(sdkSnippet, "SDK 片段已复制")}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Clipboard className="size-4" />
+                    复制片段
+                  </Button>
+                  <Button onClick={enterDashboard} type="button">
+                    进入 Dashboard
+                    <ArrowRight className="size-4" />
+                  </Button>
+                </div>
+              }
+              description="项目创建完成后会生成 webhook。把它配置到现有监控、后端服务或前端 SDK 中，错误就会进入 Smart X。"
+              icon={<Webhook className="size-4" />}
+              key="webhook"
+              progress={STEP_PROGRESS.webhook}
+              stepLabel={STEP_LABELS.webhook}
+              title="生成 Webhook"
+            >
+              {currentProject ? (
+                <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="rounded-md border bg-muted/30 p-4">
                     <p className="font-medium text-xs">Webhook URL</p>
-                    <p className="mt-1 break-all rounded-md bg-background p-2 font-mono text-xs">
+                    <p className="mt-2 break-all rounded-md bg-background p-2 font-mono text-xs">
                       {currentProject.webhookUrl}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        onClick={() =>
+                          copyValue(currentProject.webhookUrl, "Webhook 已复制")
+                        }
+                        type="button"
+                        variant="outline"
+                      >
+                        <Clipboard className="size-4" />
+                        复制 webhook
+                      </Button>
+                      <Button
+                        disabled={testAlertMutation.isPending}
+                        onClick={() => testAlertMutation.mutate()}
+                        type="button"
+                      >
+                        <Send className="size-4" />
+                        发送测试 Alert
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() =>
-                        copyValue(currentProject.webhookUrl, "Webhook 已复制")
-                      }
-                      type="button"
-                      variant="outline"
-                    >
-                      <Clipboard className="size-4" />
-                      复制 webhook
-                    </Button>
-                    <Button
-                      disabled={testAlertMutation.isPending}
-                      onClick={() => testAlertMutation.mutate()}
-                      type="button"
-                    >
-                      <Send className="size-4" />
-                      发送测试 Alert
-                    </Button>
-                  </div>
+                  <pre className="max-h-72 overflow-auto rounded-md border bg-[#101418] p-4 text-[0.72rem] text-emerald-100 leading-5">
+                    <code>{sdkSnippet}</code>
+                  </pre>
                 </div>
-              ) : (
-                <div className="mt-4 rounded-md border border-dashed p-3 text-muted-foreground text-sm">
-                  先连接 GitHub 或 GitLab 项目，平台会生成 webhook。
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-md border bg-[#101418] p-4 text-white">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-sm">SDK / env 片段</p>
-                <Button
-                  disabled={!webhookUrl}
-                  onClick={() => copyValue(sdkSnippet, "SDK 片段已复制")}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  <Clipboard className="size-3" />
-                  复制
-                </Button>
-              </div>
-              <pre className="mt-3 max-h-72 overflow-auto rounded-md bg-black/35 p-3 text-[0.72rem] text-emerald-100 leading-5">
-                <code>{sdkSnippet}</code>
-              </pre>
-            </div>
-          </div>
-        </section>
-
-        <Button className="mt-6 h-9 w-full md:hidden" onClick={enterDashboard}>
-          稍后设置
-          <ArrowRight className="size-4" />
-        </Button>
+              ) : null}
+            </StepCard>
+          ) : null}
+        </div>
       </div>
-      <CreateProjectDialog onOpenChange={setCreateOpen} open={createOpen} />
     </div>
   );
 }
