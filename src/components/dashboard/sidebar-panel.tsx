@@ -94,7 +94,7 @@ export default function SidebarPanel() {
       </div>
 
       <SidebarContent className="px-0">
-        <SidebarMenu className="gap-0 px-2">
+        <SidebarMenu className="gap-0">
           {items.map((item) => (
             <SidebarMenuItem
               className="flex min-w-0 items-center gap-1"

@@ -1,6 +1,6 @@
-# 报警分析 Prompt 精修
+# 处理记录时间线美化
 
-- 目标：让 AI 分析先判断真实业务/用户可见影响，再决定是否修复并创建 PR/MR。
-- 改动：扩展 `Analysis` 增加 `businessImpact` 和 `fixDecision`；抽出共享分析/修复 prompt 与 schema；自动模式遇到 `keep_backlog` 会写回 Backlog 并跳过创建请求；创建请求入口也拒绝 `keep_backlog`。
-- 验证：相关 Vitest、`npm run test`、touched 文件 Ultracite、`git diff --check` 通过；全量 `npm run check` 和 `npx tsc --noEmit` 仍被既有无关 lint/依赖类型问题阻塞。
-- 待办：全量 Ultracite 和 TypeScript 项目检查需要单独清理仓库既有问题。
+- 目标：让处理记录时间线更像组件化日志视图。
+- 改动：参考 Magic UI / shadcn / Fumadocs 后选择 shadcn 风格组合；使用 lucide 图标、轨道线、事件卡片和 `Badge` 区分报警、PR/MR、反馈。
+- 验证：`npm test` 通过；本次 touched 文件 `npx ultracite check ...` 通过。
+- 待办：如需更复杂动画，可后续再评估引入 Magic UI 组件。

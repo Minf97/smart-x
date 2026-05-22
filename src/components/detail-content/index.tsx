@@ -36,7 +36,7 @@ export default function DetailContent() {
 
       <Separator />
 
-      <DetailActivity item={item} />
+      <DetailActivity item={item} request={selectedRequest} />
     </div>
   );
 }
