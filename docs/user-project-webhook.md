@@ -39,7 +39,7 @@ https://your-backend.example.com/ingest/wk_xxx
 - `priority`：支持 `P0`、`P1`、`P2`；不传时 Remote Backend 会按 `severity` 兜底映射。
 - `sourceUrl`：出错页面、接口或监控链接。
 - `occurredAt`：ISO 时间；不传时使用 Remote Backend 收到的时间。
-- `groupKey`：可选。同类 Alert 的稳定分组键；不传时 Remote Backend 会按标题、信息和首行堆栈生成。
+- `groupKey`：可选。同类 Alert 的稳定分组键；不传时 Remote Backend 会按 `title` 生成并聚合。
 - `rawAlert`：不需要手动传，Remote Backend 会保存原始 payload。
 
 ## 3. 浏览器端最小示例

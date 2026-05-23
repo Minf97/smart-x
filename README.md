@@ -104,6 +104,9 @@ The backend serves `POST /projects`, `POST /ingest/:webhookId`, and `GET /projec
 - Vercel uses `backend/index.ts` as the Hono entry
 - Check the deployment with `GET /health`
 
+If the browser can access the deployed backend but local Electron or CLI
+requests time out, see `docs/local-proxy-sop.md`.
+
 Now you can go directly to `/src/routes/index.tsx` and modify the app as you want.
 
 > You can also delete the `/src/routes/second.tsx` file if you don't want a second page.

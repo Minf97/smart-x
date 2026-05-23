@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { listAlerts, syncAlerts } from "@/api/alerts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -16,7 +17,7 @@ import {
 import { ALERTS_QUERY_KEY, useAlertView } from "@/hooks/use-alerts";
 import { useAlertStore } from "@/store/alert-store";
 import AlertStatusDropdown from "./alert-status-dropdown";
-import { getLastSeen } from "./helpers";
+import { getLastSeen, getPriorityColor, getPriorityLabel } from "./helpers";
 import ProjectSwitcher from "./project-switcher";
 import SettingsTrigger from "./settings-trigger";
 
@@ -41,7 +42,7 @@ function AlertsRefreshButton() {
           : t("dashboard.refreshAlertsFailed")
       );
     },
-    onSuccess(result) {
+    onSuccess(_result) {
       toast.success(t("dashboard.refreshAlertsSuccess"));
     },
   });
@@ -95,47 +96,59 @@ export default function SidebarPanel() {
 
       <SidebarContent className="px-0">
         <SidebarMenu className="gap-0">
-          {items.map((item) => (
-            <SidebarMenuItem
-              className="flex min-w-0 items-center gap-1"
-              key={item.id}
-              onMouseEnter={() => setHoveredId(item.id)}
-              onMouseLeave={() => setHoveredId(null)}
-            >
-              <AlertStatusDropdown
-                item={item}
-                triggerClassName="h-8 w-7 shrink-0"
-              />
-              <SidebarMenuButton
-                className="h-8 min-w-0 flex-1 gap-2 px-2 hover:bg-accent"
-                isActive={selectedId === item.id}
-                onClick={() => setSelectedId(item.id)}
+          {items.map((item) => {
+            const occurrenceCount = item.detail.summary.occurrenceCount ?? 1;
+
+            return (
+              <SidebarMenuItem
+                className="flex min-w-0 items-center gap-1"
+                key={item.id}
+                onMouseEnter={() => setHoveredId(item.id)}
+                onMouseLeave={() => setHoveredId(null)}
               >
-                {/* 编号 */}
-                <span
-                  className="w-16 shrink-0 truncate font-mono text-muted-foreground text-xs"
-                  title={item.id}
+                <AlertStatusDropdown
+                  item={item}
+                  triggerClassName="h-8 w-7 shrink-0"
+                />
+                <SidebarMenuButton
+                  className="h-8 min-w-0 flex-1 gap-2 px-2 hover:bg-accent"
+                  isActive={selectedId === item.id}
+                  onClick={() => setSelectedId(item.id)}
                 >
-                  {item.id}
-                </span>
-
-                {/* 标题 */}
-                <span
-                  className="min-w-0 flex-1 truncate text-xs"
-                  title={item.title}
-                >
-                  {item.title}
-                </span>
-
-                {/* 时间 */}
-                {hoveredId === item.id && (
-                  <span className="max-w-16 shrink-0 truncate text-muted-foreground text-xs">
-                    {getLastSeen(item)}
+                  {/* 分组标题 */}
+                  <span
+                    className="min-w-0 flex-1 truncate text-xs"
+                    title={item.title}
+                  >
+                    {item.title}
                   </span>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+
+                  {/* 发生次数 */}
+                  <Badge
+                    className="h-4 shrink-0 px-1.5 font-mono text-[0.625rem]"
+                    variant="secondary"
+                  >
+                    x{occurrenceCount}
+                  </Badge>
+
+                  {/* 最高优先 */}
+                  <Badge
+                    className={`${getPriorityColor(item.priority)} h-4 shrink-0 px-1.5 text-[0.625rem]`}
+                    variant="outline"
+                  >
+                    {getPriorityLabel(t, item.priority)}
+                  </Badge>
+
+                  {/* 最近时间 */}
+                  {hoveredId === item.id && (
+                    <span className="max-w-16 shrink-0 truncate text-muted-foreground text-xs">
+                      {getLastSeen(item)}
+                    </span>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarContent>
       <SidebarRail />

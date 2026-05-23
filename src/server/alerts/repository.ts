@@ -752,21 +752,46 @@ function groupFeedbackSignals(rows: FeedbackSignalRow[]) {
 // 写远端报警
 function writeRemoteAlert(item: Item, position: number) {
   const db = getDb();
-  const row = db
+  const rowById = db
     .select()
     .from(alertsTable)
     .where(eq(alertsTable.id, item.id))
     .get();
-  const nextRow = toAlertRow(item, row?.position ?? position);
+  // 匹配旧组
+  const rowByGroup = db
+    .select()
+    .from(alertsTable)
+    .where(eq(alertsTable.groupKey, item.groupKey))
+    .all()
+    .find((row) => row.projectId === item.projectId);
+  const row = rowById ?? rowByGroup;
 
-  if (!row) {
-    db.insert(alertsTable).values(nextRow).run();
-    return "inserted";
+  if (row) {
+    const current = toItem(row);
+    // 保留本地态
+    const nextItem = {
+      ...item,
+      createdAt: current.createdAt,
+      detail: {
+        ...item.detail,
+        analysis: current.detail.analysis,
+      },
+      id: current.id,
+      isRead: current.isRead,
+      readAt: current.readAt,
+      status: current.status,
+    } satisfies Item;
+    const nextRow = toAlertRow(nextItem, row.position);
+
+    db.update(alertsTable).set(nextRow).where(eq(alertsTable.id, row.id)).run();
+
+    return "updated";
   }
 
-  db.update(alertsTable).set(nextRow).where(eq(alertsTable.id, item.id)).run();
+  const nextRow = toAlertRow(item, position);
 
-  return "updated";
+  db.insert(alertsTable).values(nextRow).run();
+  return "inserted";
 }
 
 // 写项目

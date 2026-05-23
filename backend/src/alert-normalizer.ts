@@ -50,16 +50,8 @@ function mapPriority(input: Record<string, unknown>): ItemPriority {
 }
 
 // 分组键
-function buildGroupKey(input: {
-  message: string;
-  stack: string;
-  title: string;
-}) {
-  const key = [input.title, input.message, input.stack.split("\n")[0] || ""]
-    .join("|")
-    .trim();
-
-  return createHash("sha1").update(key).digest("hex");
+function buildGroupKey(title: string) {
+  return createHash("sha1").update(title.trim()).digest("hex");
 }
 
 // 标准化
@@ -97,13 +89,7 @@ export function normalizePayload(body: unknown): IngestPayload {
     null;
   const environment =
     pickText(input.environment) || pickText(input.env) || null;
-  const groupKey =
-    pickText(input.groupKey) ||
-    buildGroupKey({
-      message,
-      stack,
-      title,
-    });
+  const groupKey = pickText(input.groupKey) || buildGroupKey(title);
 
   return {
     count,

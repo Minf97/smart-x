@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import type { IngestPayload, Item } from "../../shared/types/alert";
 import type { ProjectRecord } from "../../shared/types/project";
+import { buildClusteredAlertPatch } from "./alert-cluster";
 import { ensureSchema, getDb } from "./db/client";
 import { alertsTable, projectsTable } from "./db/schema";
 import {
@@ -134,7 +135,36 @@ export class BackendDatabase {
     const now = new Date().toISOString();
     // TODO: 1.校验 payload 格式，2.如果不符合我们要求的格式，就需要调用 AI 接口进行转换
 
-    // 构建 detail-content 所需要的字段
+    // 查找同组
+    const existingRows = await db
+      .select()
+      .from(alertsTable)
+      .where(
+        and(
+          eq(alertsTable.projectId, projectId),
+          eq(alertsTable.groupKey, payload.groupKey)
+        )
+      )
+      .limit(1);
+    const existingRow = existingRows[0];
+
+    if (existingRow) {
+      const patch = buildClusteredAlertPatch(existingRow, payload, now);
+      const rows = await db
+        .update(alertsTable)
+        .set(patch)
+        .where(eq(alertsTable.id, existingRow.id))
+        .returning();
+      const row = rows[0];
+
+      if (!row) {
+        throw new Error("Failed to update alert.");
+      }
+
+      return toAlertItem(row);
+    }
+
+    // 构建详情
     const detail = buildAlertDetail({
       count: payload.count,
       environment: payload.environment,
@@ -147,7 +177,7 @@ export class BackendDatabase {
       sourceUrl: payload.sourceUrl,
       stack: payload.stack,
     });
-    // 构建入库的报警记录数据结构
+    // 构建记录
     const alert: typeof alertsTable.$inferInsert = {
       createdAt: now,
       detailJson: stringifyJson(detail),

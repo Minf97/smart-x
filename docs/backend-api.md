@@ -27,6 +27,10 @@ curl -sS "$BASE_URL/health"
 {"ok":true,"databaseConfigured":true}
 ```
 
+如果浏览器可以访问但终端、Node 或 Electron 请求超时，先按
+[本地代理排查 SOP](./local-proxy-sop.md) 检查代理和 DNS，不要先改
+`BASE_URL`。
+
 ## 2. 创建项目
 
 ```bash
@@ -203,33 +207,18 @@ curl -sS "$BASE_URL/projects/$PROJECT_ID/alerts"
 
 这里补充一个已经确认的建模约定：
 
-- 每次 webhook 进来的报警，都应当新增一条记录
-- `groupKey` 只代表报警类别，不代表唯一记录
-- 相同 `groupKey` 的多条报警，不应互相覆盖
-- 前端未来可以按 `groupKey` 做分组展示
-- 分组后的数量，就是同组报警记录数
+- Remote Backend 按 `projectId + groupKey` 聚合同类报警。
+- 如果上报 payload 显式传入 `groupKey`，直接使用该值。
+- 如果没有传 `groupKey`，Remote Backend 会按 `title` 生成稳定分组键。
+- 相同 `groupKey` 的新报警会更新原有记录，并累计 `occurrenceCount`。
+- 左侧列表按 group 展示，一组只展示一行。
 
 也就是说：
 
-- 后端负责保留原始报警记录
-- 前端负责按 `groupKey` 聚合同类报警
-
-当前代码里 `projectId + groupKey` 的覆盖写法，只是临时实现，不是最终模型。
-
-最终我们要的效果是：
-
-- 连续进来 10 条同类报警
-- 数据库里有 10 条记录
-- 前端列表可以选择：
-  - 展示原始记录
-  - 或按 `groupKey` 分组后展示 1 组
-
-这样做的好处是：
-
-- 原始数据不会丢
-- 后续统计更准确
-- 前端分组更灵活
-- 未来也能按时间、环境、版本再做二次聚合
+- 连续进来 10 条同标题报警
+- 数据库里保留 1 条聚合记录
+- `occurrenceCount` 显示为 10
+- 最近时间、最高优先级和最新错误内容会更新到该记录
 
 ## 8. 下一步
 
